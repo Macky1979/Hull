@@ -1,0 +1,44 @@
+TREE DEFINITION
+option type: European
+payoff_fnc = lambda x: max(x - 800, 0)
+S_0 = 810.00
+sigma = 20.00%
+r = 5.00%
+q = 2.00%
+T = 0.50
+time_steps_no = 2
+
+DERIVED PAREMETERS
+dt = 0.25
+df = 98.76%
+p = 51.26%
+u = 1.10517
+d = 1.10517
+
+BINOMIAL TREE
+
+node coordinates
+stock price
+derivative price
+early exercise indicator
+
+                  (2, 2)   
+                  989.336  
+                  189.336  
+
+         (1, 1)            
+         895.188           
+         100.661           
+
+(0, 0)            (2, 0)   
+810.000           810.000  
+53.395            10.000   
+
+         (1, -1)           
+         732.918           
+         5.062             
+
+                  (2, -2)  
+                  663.172  
+                  0.000    
+
