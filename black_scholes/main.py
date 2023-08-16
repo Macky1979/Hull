@@ -140,7 +140,7 @@ class BlackScholes:
             T = self.parameters['T']
 
             # calculate d1 and d2
-            d1 = (np.log(S_0 / K) + (r - q + sigma ** 2) * T) / (sigma * np.sqrt(T))
+            d1 = (np.log(S_0 / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
             d2 = d1 - sigma * np.sqrt(T)
             self.parameters['d1'] = d1
             self.parameters['d2'] = d2
@@ -148,8 +148,10 @@ class BlackScholes:
             # calculate option value
             if (tp == 'call'):
                 self.f = S_0 * np.exp(-q * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+                self.delta = norm.cdf(d1)
             else:
                 self.f = K * np.exp(-r * T) * norm.cdf(-d2) - S_0 * np.exp(-q * T) * norm.cdf(-d1)
+                self.delta = norm.cdf(d1) - 1.0
 
         # Black-Scholes formula based on F_0 = S_0 * exp((r - q) * T); if we know F_0 we do not
         # have to estimate dividend yield q
@@ -164,13 +166,15 @@ class BlackScholes:
             T = self.parameters['T']
 
             # calculate d1 and d2
-            d1 = (np.log(F_0 / K) + (sigma ** 2) * T) / (sigma * np.sqrt(T))
-            d2 = (np.log(F_0 / K) - (sigma ** 2) * T) / (sigma * np.sqrt(T))
+            d1 = (np.log(F_0 / K) + (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
+            d2 = (np.log(F_0 / K) - (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
             self.parameters['d1'] = d1
             self.parameters['d2'] = d2
 
             # calculate option value
             if (tp == 'call'):
                 self.f = F_0 * np.exp(-r * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+                self.delta = norm.cdf(d1)
             else:
                 self.f = K * np.exp(-r * T) * norm.cdf(-d2) - F_0 * np.exp(-r * T) * norm.cdf(-d1)
+                self.delta = norm.cdf(d1) - 1.0

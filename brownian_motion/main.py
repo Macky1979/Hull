@@ -120,14 +120,3 @@ class BrownianMotion:
         print('true geometric average:          ' + '{:10.8f}'.format(self.geometric_avg))
         print('1st estimated geometric average: ' + '{:10.8f}'.format(self.geometric_avg_est_1))
         print('2nd estimated geometric average: ' + '{:10.8f}'.format(self.geometric_avg_est_2))
-
-S_0 = 100
-mu = 0.05
-sigma = 0.20
-T = 1
-steps_no = T * 12
-paths_no = 1000000 # only the first 100 paths are ploted
-mc = BrownianMotion(S_0=S_0, mu=mu, sigma=sigma, T=T, steps_no=steps_no, paths_no=paths_no)
-mc.generate(seed=None)
-mc.plot()
-mc.calc_exp_return()
