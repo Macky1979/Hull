@@ -52,8 +52,25 @@ class BlackScholes:
         q=0.01
         sigma=0.20
         T=1.00
-        opt = BlackScholes(tp=tp, S_0=S_0, K=K, r=r, q=q, sigma=sigma, T=T)
-        print('option price: ' + '{:10.3f}'.format(opt.f))
+        greeks = True
+        max_msg_len = 20
+
+        opt = BlackScholes(tp=tp, S_0=S_0, K=K, r=r, q=q, sigma=sigma, T=T, greeks=greeks)
+
+        msg = 'price: '
+        msg_len = int(max_msg_len - len(msg))
+        num = '{:.3f}'.format(opt.f)
+        msg_len -= len(num)
+        msg += ' ' * msg_len + num
+        print(msg)
+
+        for key, value in opt.greeks.items():
+            msg = key + ': '
+            msg_len = int(max_msg_len - len(msg))
+            num = '{:.3f}'.format(opt.greeks[key])
+            msg_len -= len(num)
+            msg += ' ' * msg_len + num
+            print(msg)
 
     example 2:
         # Black-Scholes formula based on F_0
@@ -67,7 +84,6 @@ class BlackScholes:
         F_0 = S_0 * np.exp((r - q) * T)
         opt = BlackScholes(tp=tp, F_0=F_0, K=K, r=r, sigma=sigma, T=T)
         print('option price: ' + '{:10.3f}'.format(opt.f))
-
 
     example 3:
         # symmetry of FX options
@@ -106,6 +122,9 @@ class BlackScholes:
         F_0_param_nms = np.sort(['tp', 'F_0', 'K', 'r', 'sigma', 'T'])
         obj_param_nms = np.sort(list(self.parameters.keys()))
 
+        if 'greeks' in obj_param_nms:
+            obj_param_nms = np.delete(obj_param_nms, np.where(obj_param_nms == 'greeks'))
+
         if (len(obj_param_nms) == len(S_0_param_nms)):
             S_0_param_match = (obj_param_nms == S_0_param_nms).all()
         else:
@@ -139,6 +158,11 @@ class BlackScholes:
             sigma = self.parameters['sigma']
             T = self.parameters['T']
 
+            try:
+                greeks = self.parameters['greeks']
+            except KeyError:
+                greeks = False
+
             # calculate d1 and d2
             d1 = (np.log(S_0 / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
             d2 = d1 - sigma * np.sqrt(T)
@@ -148,10 +172,24 @@ class BlackScholes:
             # calculate option value
             if (tp == 'call'):
                 self.f = S_0 * np.exp(-q * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-                self.delta = norm.cdf(d1)
+                if (greeks):
+                    self.greeks = {}
+                    self.greeks['delta'] = np.exp(-q * T) * norm.cdf(d1)
+                    self.greeks['gamma'] = np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
+                    self.greeks['theta'] = -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) + q * S_0 * norm.pdf(d1) * np.exp(-q * T) - r * K * np.exp(-r * T) * norm.cdf(d2)
+                    self.greeks['vega'] = S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
+                    self.greeks['rho_r'] = K * T * np.exp(-r * T) * norm.cdf(d2)
+                    self.greeks['rho_q'] = -T * np.exp(-q * T) * S_0 * norm.cdf(d1)
             else:
                 self.f = K * np.exp(-r * T) * norm.cdf(-d2) - S_0 * np.exp(-q * T) * norm.cdf(-d1)
-                self.delta = norm.cdf(d1) - 1.0
+                if (greeks):
+                    self.greeks = {}
+                    self.greeks['delta'] = np.exp(-q * T) * (norm.cdf(d1) - 1.0)
+                    self.greeks['gamma'] = np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
+                    self.greeks['theta'] = -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) - q * S_0 * norm.pdf(-d1) * np.exp(-q * T) + r * K * np.exp(-r * T) * norm.cdf(-d2)
+                    self.greeks['vega'] = S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
+                    self.greeks['rho_r'] = -K * T * np.exp(-r * T) * norm.cdf(-d2)
+                    self.greeks['rho_q'] = T * np.exp(-q * T) * S_0 * norm.cdf(-d1)
 
         # Black-Scholes formula based on F_0 = S_0 * exp((r - q) * T); if we know F_0 we do not
         # have to estimate dividend yield q
@@ -164,6 +202,7 @@ class BlackScholes:
             r = self.parameters['r']
             sigma = self.parameters['sigma']
             T = self.parameters['T']
+            greeks = self.parameters['greeks']
 
             # calculate d1 and d2
             d1 = (np.log(F_0 / K) + (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
