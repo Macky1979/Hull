@@ -238,8 +238,3 @@ def main(file_nm, pcs_no=None):
     # correlation matrix, eigenvalues, eigenvectors and "reduced " data in
     # original co-ordinates
     return data, mean, stdev, corr_mtrx, eigenvalues, eigenvectors, vol_explained, data_reduced
-
-
-file_nm = 'BankData.csv'
-pcs_no = 3
-[data, mean, stdev, corr_mtrx, eigenvalues, eigenvectors, vol_explained, data_reduced] = main(file_nm=file_nm, pcs_no=pcs_no)
