@@ -64,6 +64,8 @@ def main(file_nm, pcs_no=None):
             eigenvectors of the correlation matrix
         vol_explained: float
             percentage of original volatility captured by pcs_no first PCs
+        data_reduced_rot: pd.DataFrame
+            'reduced' data rotated in line with eigenvectors
         data_reduced: pd.DataFrame
             'reduced' data after applying pcs_no PCs
 
@@ -130,31 +132,27 @@ def main(file_nm, pcs_no=None):
     # inform user
     print('Adding row and column names to eigenvalues and eigenvectors dataframe...')
 
-    # add column and row names to eigenvalues and eigenvectors
-    pc_nms = ['pc' + str(x + 1).zfill(2) for x in range(len(col_nms))]
-
-    eigenvalues = pd.DataFrame(eigenvalues)
-    eigenvalues = eigenvalues.set_axis(pc_nms, axis=0)
-    eigenvalues = eigenvalues.set_axis(['eigenvalues'], axis=1)
-
-    eigenvectors = pd.DataFrame(eigenvectors)
-    eigenvectors = eigenvectors.set_axis(col_nms, axis=0)
-    eigenvectors = eigenvectors.set_axis(pc_nms, axis=1)
-
     # inform user
     print('Transforming original data into new co-cordinates represented by selected PCs...')
 
     # transform original standardized data into new co-ordinates system
     # represented by the most important PCs (if you have dropped some PCs some
     # information is lost)
-    data_reduced = np.matmul(data_std, eigenvectors_reduced)
+
+    # please note that every column of data_reduced_rot has zero mean and
+    # volatility equal to the corresponding eigenvalue
+
+    # in ALM shocks we asssumed that the columns follow normal distribution
+    # and we derived their stressed value using required quantile; in this
+    # way we determined up / down shock and steepening / flattening shock
+    data_reduced_rot = np.matmul(data_std, eigenvectors_reduced)
 
     # inform user
     print('Transforming data back into original coordinates...')
 
     # transform the reduced data from new co-ordinates back to original
     # co-ordinates
-    data_reduced = np.matmul(eigenvectors_reduced, data_reduced.T).T
+    data_reduced = np.matmul(eigenvectors_reduced, data_reduced_rot.T).T
 
     # inform user
     print('Adding back mean and standard deviation...')
@@ -171,8 +169,22 @@ def main(file_nm, pcs_no=None):
 
     # delete all files in folder figures
     delete_files_in_folder('figures')
-    delete_files_in_folder('figures//eigenvectors')
+    delete_files_in_folder('figures//histograms')
     delete_files_in_folder('figures//orig_vs_reduced_data')
+
+    # add column and row names to eigenvalues, eigenvectors and the reduced
+    # rotated data
+    pc_nms = ['pc' + str(x + 1).zfill(2) for x in range(len(col_nms))]
+
+    eigenvalues = pd.DataFrame(eigenvalues)
+    eigenvalues = eigenvalues.set_axis(pc_nms, axis=0)
+    eigenvalues = eigenvalues.set_axis(['eigenvalues'], axis=1)
+
+    eigenvectors = pd.DataFrame(eigenvectors)
+    eigenvectors = eigenvectors.set_axis(col_nms, axis=0)
+    eigenvectors = eigenvectors.set_axis(pc_nms, axis=1)
+
+    data_reduced_rot = data_reduced_rot.set_axis(pc_nms[0: pcs_no], axis=1)
 
     # inform user
     print('Plot eigenvalues...')
@@ -185,13 +197,14 @@ def main(file_nm, pcs_no=None):
 
     # plot eigenvector histograms (in ALM shock construction we assumed they
     # follow normal distribution)
-    folder_nm = 'figures//eigenvectors//'
+    folder_nm = 'figures//histograms//'
     if (len(data) > 20):
 
-        print('Plot eigenvectors histograms...')
+        print('Plot PCs histograms...')
 
-        for pc_nm in pc_nms:
-            plt.hist(eigenvectors[pc_nm], bins=10, color='cornflowerblue', width=0.9)
+        for pc_nm in pc_nms[0: pcs_no]:
+            bins = min(int(len(data) / 10), 10)
+            plt.hist(data_reduced_rot[pc_nm], bins=bins, color='cornflowerblue', width=0.9)
             plt.title('Histogram of ' + pc_nm)
             plt.savefig(folder_nm + pc_nm + '.jpg', dpi=100)
             plt.clf()
@@ -237,4 +250,17 @@ def main(file_nm, pcs_no=None):
     # return original data in original co-ordinates, means, standard deviations,
     # correlation matrix, eigenvalues, eigenvectors and "reduced " data in
     # original co-ordinates
-    return data, mean, stdev, corr_mtrx, eigenvalues, eigenvectors, vol_explained, data_reduced
+    return data, mean, stdev, corr_mtrx, eigenvalues, eigenvectors, vol_explained, data_reduced_rot, data_reduced
+
+
+file_nm = 'BankData.csv'
+pcs_no = 3
+[data,
+ mean,
+ stdev,
+ corr_mtrx,
+ eigenvalues,
+ eigenvectors,
+ vol_explained,
+ data_reduced_tot,
+ data_reduced] = main(file_nm=file_nm, pcs_no=pcs_no)
