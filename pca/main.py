@@ -36,7 +36,7 @@ def delete_files_in_folder(folder_nm):
             print('Failed to delete %s: %s' %(file_path, e))
 
 
-def main(file_nm, pcs_no=None):
+def main(file_nm, exclude_col_nms=None, pcs_no=None):
     """
     Michal Mackanic 03/09/2023 v1.0
 
@@ -46,6 +46,8 @@ def main(file_nm, pcs_no=None):
         file_nm: str
             name of data file located in data folder; the first row contains
             column names and all values are numeric
+        exclude_col_nms: list str
+            list of column names to be excluded from PCA
         pcs_no: int
             number of PCs to be used when 'reducing' data dimension
     output:
@@ -70,9 +72,22 @@ def main(file_nm, pcs_no=None):
             'reduced' data after applying pcs_no PCs
 
     example:
-        file_nm = 'BankData.csv'
+        file_nm = 'eu_gov_yld_crv.csv'
+        exclude_col_nms = ['TIME_PERIOD']
         pcs_no = 3
-        [data, mean, stdev, corr_mtrx, eigenvalues, eigenvectors, vol_explained, data_reduced] = main(file_nm=file_nm, pcs_no=pcs_no)
+
+        [data,
+         mean,
+         stdev,
+         corr_mtrx,
+         eigenvalues,
+         eigenvectors,
+         vol_explained,
+         data_reduced_tot,
+         data_reduced] =\
+            main(file_nm=file_nm,
+                 exclude_col_nms=exclude_col_nms,
+                 pcs_no=pcs_no)
     """
 
     # inform user
@@ -83,6 +98,13 @@ def main(file_nm, pcs_no=None):
 
     # get list of column names
     col_nms = list(data.columns)
+
+    # exclude column names
+    if (exclude_col_nms is not None):
+        for col_nm in exclude_col_nms:
+            col_nms.remove(col_nm)
+
+    data = data[col_nms]
 
     # inform user
     print('Standardizing data...')
@@ -192,7 +214,8 @@ def main(file_nm, pcs_no=None):
     # plot eigenvalues
     plt.bar(pc_nms, eigenvalues.T.values[0], color ='cornflowerblue', width = 0.9)
     plt.title('Eigenvalues')
-    plt.savefig('figures//eigenvalues.jpg', dpi=100)
+    plt.xticks(rotation=90, ha='right')
+    plt.savefig('figures//eigenvalues.jpg', dpi=300)
     plt.clf()
 
     # plot eigenvector histograms (in ALM shock construction we assumed they
@@ -204,9 +227,9 @@ def main(file_nm, pcs_no=None):
 
         for pc_nm in pc_nms[0: pcs_no]:
             bins = min(int(len(data) / 10), 10)
-            plt.hist(data_reduced_rot[pc_nm], bins=bins, color='cornflowerblue', width=0.9)
+            plt.hist(data_reduced_rot[pc_nm], bins=bins, color='cornflowerblue')
             plt.title('Histogram of ' + pc_nm)
-            plt.savefig(folder_nm + pc_nm + '.jpg', dpi=100)
+            plt.savefig(folder_nm + pc_nm + '.jpg', dpi=300)
             plt.clf()
 
     # inform user
@@ -228,7 +251,7 @@ def main(file_nm, pcs_no=None):
                  label='reduced data')
         plt.title(col_nm + ' - original vs. reduced data')
         plt.legend(loc='upper left')
-        plt.savefig(folder_nm + col_nm + '.jpg', dpi=100)
+        plt.savefig(folder_nm + col_nm + '.jpg', dpi=300)
         plt.clf()
 
     # inform user
@@ -253,8 +276,14 @@ def main(file_nm, pcs_no=None):
     return data, mean, stdev, corr_mtrx, eigenvalues, eigenvectors, vol_explained, data_reduced_rot, data_reduced
 
 
-file_nm = 'BankData.csv'
+#############
+#### RUN ####
+#############
+
+file_nm = 'eu_gov_yld_crv_shifts.csv'
+exclude_col_nms = ['DATE']
 pcs_no = 3
+
 [data,
  mean,
  stdev,
@@ -263,4 +292,7 @@ pcs_no = 3
  eigenvectors,
  vol_explained,
  data_reduced_tot,
- data_reduced] = main(file_nm=file_nm, pcs_no=pcs_no)
+ data_reduced] =\
+    main(file_nm=file_nm,
+         exclude_col_nms=exclude_col_nms,
+         pcs_no=pcs_no)
