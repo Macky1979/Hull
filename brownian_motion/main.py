@@ -69,7 +69,7 @@ class BrownianMotion:
         if (seed is not None):
             np.random.seed(seed=seed)
 
-        # generate listw of random variables drawn from N(0, 1)
+        # generate list of random variables drawn from N(0, 1)
         u = norm.rvs(size=[self.paths_no, self.steps_no])
 
         # calculate stock prices
