@@ -711,15 +711,15 @@ def pdf(x: np.array,
     Parameters
     ----------
     x : np.array
-        DESCRIPTION.
+        Value for PDF to be valued at.
     c : float
-        DESCRIPTION.
+        Parameter c.
     theta : float
-        DESCRIPTION.
+        Parameter theta.
     sigma : float
-        DESCRIPTION.
+        Parameter sigma.
     vega : float
-        DESCRIPTION.
+        Parameter vega.
 
     Returns
     -------
