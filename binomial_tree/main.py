@@ -65,25 +65,25 @@ class Node:
         self.coordinates = coordinates
 
         # perform node specific checks
-        if (self.coordinates[0] < 0):
+        if self.coordinates[0] < 0:
             raise ValueError ('Node ' + str(self.coordinates) + ': ' +\
                               'the first coordinate represents number of ' +\
                               'time steps and as such cannot be negative!')
 
-        if (self.coordinates[1] > self.coordinates[0]):
+        if self.coordinates[1] > self.coordinates[0]:
             raise ValueError ('Node ' + str(self.coordinates) + ': ' +\
                               'the second  coordinate cannot be higher ' +\
                               'than the first coordinate!')
 
         # determine stock price at the node
-        if (self.coordinates[1] > 0):
+        if self.coordinates[1] > 0:
             self.S = S_0 * (u ** self.coordinates[1])
-        elif (self.coordinates[1] == 0):
+        elif self.coordinates[1] == 0:
             self.S = S_0
         else:
             self.S = S_0 * ((1 / u) ** -self.coordinates[1])
 
-        # early exercise indicator for Americal option
+        # early exercise indicator for American option
         self.exe = False
 
     def evaluate(self, df, p, payoff_fnc, opt_tp, f_u=None, f_d=None):
@@ -99,18 +99,18 @@ class Node:
         # if (a) f_u and f_d are not specified, the node belongs to terminal
         # nodes or (b) it is an American option => we have to evaluate
         # derivative payoff function
-        if ((f_u is None) or (opt_tp == 'American')):
+        if (f_u is None) or (opt_tp == 'American'):
             self.f = payoff_fnc(self.S)
 
         # European option and non-terminal node
-        if ((f_u is not None) and (opt_tp == 'European')):
+        if (f_u is not None) and (opt_tp == 'European'):
             self.f = (p * f_u + (1 - p) * f_d) * df
 
         # American option and non-terminal node
-        if ((f_u is not None) and (opt_tp == 'American')):
+        if (f_u is not None) and (opt_tp == 'American'):
             f_aux = (p * f_u + (1 - p) * f_d) * df
 
-            if (self.f > f_aux):
+            if self.f > f_aux:
                 self.exe = True
             else:
                 self.exe = False
@@ -299,7 +299,7 @@ class Tree:
             for j in range(-i, i + 1, 2):
 
                 # teminal nodes
-                if (i == self.time_steps_no):
+                if i == self.time_steps_no:
                     f_u = None
                     f_d = None
 
@@ -341,7 +341,7 @@ class Tree:
         f.write('T = ' + '{:,.2f}'.format(self.T) + '\n')
         f.write('time_steps_no = ' + '{:,.0f}'.format(self.time_steps_no) + '\n')
         f.write('\n')
-        f.write('DERIVED PAREMETERS' + '\n')
+        f.write('DERIVED PARAMETERS' + '\n')
         f.write('dt = ' + '{:,.2f}'.format(self.dt) + '\n')
         f.write('df = ' + '{:,.2%}'.format(self.df) + '\n')
         f.write('p = ' + '{:,.2%}'.format(self.p) + '\n')
@@ -393,7 +393,7 @@ class Tree:
                     row_3 += val
 
                     # indicator of early exercise in case of American option
-                    if (self.opt_tp == 'American'):
+                    if self.opt_tp == 'American':
                         exe_ic = str(node.exe)
                         adj = time_step_len - len(exe_ic)
                         exe_ic += ' ' * adj
@@ -405,14 +405,14 @@ class Tree:
                     row_1 += ' ' * time_step_len
                     row_2 += ' ' * time_step_len
                     row_3 += ' ' * time_step_len
-                    if (self.opt_tp == 'American'):
+                    if self.opt_tp == 'American':
                         row_4 += ' ' * time_step_len
 
             # add rows
             f.write(row_1 + '\n')
             f.write(row_2 + '\n')
             f.write(row_3 + '\n')
-            if (self.opt_tp == 'American'):
+            if self.opt_tp == 'American':
                 f.write(row_4 + '\n')
 
             # next node level
@@ -420,8 +420,3 @@ class Tree:
 
         # close file
         f.close()
-
-
-
-
-
