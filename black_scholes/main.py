@@ -124,6 +124,40 @@ class BlackScholes:
         call = BlackScholes(tp=tp, greeks=greeks, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
         call.calc()
         print('call option price: ' + '{:10.3f}'.format(call.f * K))
+
+    example 4:
+        # S_0, sigma, and r ladders
+        tp = 'call'
+        greeks = True
+        S_0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+
+        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
+
+        # S_0 ladder
+        ladder_points = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
+        S_0_ladder = opt.get_S_0_ladder(ladder_points=ladder_points)
+        print('*** S_0 ladder ***')
+        print(np.array(S_0_ladder).T)
+        print('\n')
+
+        # sigma ladder
+        ladder_points = [0.05, 0.010, 0.15, 0.20, 0.25, 0.30, 0.35]
+        sigma_ladder = opt.get_sigma_ladder(ladder_points=ladder_points)
+        print('*** sigma ladder ***')
+        print(np.array(sigma_ladder).T)
+        print('\n')
+
+        # r ladder
+        ladder_points = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10]
+        r_ladder = opt.get_r_ladder(ladder_points=ladder_points)
+        print('*** r ladder ***')
+        print(np.array(r_ladder).T)
+        print('\n')
     """
 
     def __init__(self,
@@ -335,18 +369,18 @@ class BlackScholes:
 
         # get base option value
         self.calc()
-        S_0 = self.parameters['S_0']
+        sigma = self.parameters['sigma']
         base_npv = self.f
 
         # calculate option value for individual ladder points
         stress_npv = []
         for ladder_point in ladder_points:
-            self.parameters['S_0'] = ladder_point
+            self.parameters['sigma'] = ladder_point
             self.calc()
             stress_npv.append(self.f - base_npv)
 
         # set BlackScholes back to its original form
-        self.parameters['S_0'] = S_0
+        self.parameters['sigma'] = sigma
         self.calc()
 
         # return ladder
@@ -368,7 +402,7 @@ class BlackScholes:
             stress_npv.append(self.f - base_npv)
 
         # set BlackScholes back to its original form
-        self.parameters['r'] = sigma
+        self.parameters['r'] = r
         self.calc()
 
         # return ladder
