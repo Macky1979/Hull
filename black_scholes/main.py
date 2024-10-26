@@ -1,3 +1,7 @@
+"""Black-Scholes model."""
+
+# pylint: disable=C0103
+
 import numpy as np
 
 from scipy.stats import norm
@@ -17,6 +21,9 @@ class BlackScholes:
         variables (set 1):
             tp: float
                 option type - 'call' / 'put'
+            greeks: bool
+                True - calculate Greeks
+                False - do not calculate Greeks
             S_0: float
                 stock price at time t = 0
             K: float
@@ -32,6 +39,9 @@ class BlackScholes:
         variables (set 2):
             tp: float
                 option type - 'call' / 'put'
+            greeks: bool
+                True - calculate Greeks
+                False - do not calculate Greeks
             F_0: float
                 expected forward price as seen at time t = 0
             K: float
@@ -45,17 +55,17 @@ class BlackScholes:
 
     example 1:
         # Black-Scholes formula based on S_0
-        tp='call'
-        S_0=100
-        K=80
-        r=0.05
-        q=0.01
-        sigma=0.20
-        T=1.00
+        tp = 'call'
         greeks = True
+        S_0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
         max_msg_len = 20
 
-        opt = BlackScholes(tp=tp, S_0=S_0, K=K, r=r, q=q, sigma=sigma, T=T, greeks=greeks)
+        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
 
         msg = 'price: '
         msg_len = int(max_msg_len - len(msg))
@@ -74,42 +84,47 @@ class BlackScholes:
 
     example 2:
         # Black-Scholes formula based on F_0
-        tp='call'
-        S_0=100
-        K=80
-        r=0.05
-        q=0.01
-        sigma=0.20
-        T=1.00
+        tp = 'call'
+        greeks = False
+        S_0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
         F_0 = S_0 * np.exp((r - q) * T)
-        opt = BlackScholes(tp=tp, F_0=F_0, K=K, r=r, sigma=sigma, T=T)
+        opt = BlackScholes(tp=tp, greeks=greeks, F_0=F_0, K=K, r=r, sigma=sigma, T=T)
         print('option price: ' + '{:10.3f}'.format(opt.f))
 
     example 3:
         # symmetry of FX options
         # put option
-        tp='put'
-        fx=1.10
-        K=1.05
-        r=0.05
-        r_f=0.03
-        sigma=0.20
-        T=1.00
-        put = BlackScholes(tp=tp, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
+        tp = 'put'
+        greeks = False
+        fx = 1.10
+        K = 1.05
+        r = 0.05
+        r_f = 0.03
+        sigma = 0.20
+        T = 1.00
+        put = BlackScholes(tp=tp, greeks=greeks, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
         print('put option price:  ' + '{:10.3f}'.format(put.f))
         # call option
-        tp='call'
-        fx=1.00
-        K=1.10/1.05
-        r=0.03
-        r_f=0.05
-        sigma=0.20
-        T=1.00
-        call = BlackScholes(tp=tp, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
+        tp = 'call'
+        greeks = False
+        fx = 1.00
+        K = 1.10/1.05
+        r = 0.03
+        r_f = 0.05
+        sigma = 0.20
+        T = 1.00
+        call = BlackScholes(tp=tp, greeks=greeks, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
         print('call option price: ' + '{:10.3f}'.format(call.f * K))
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self,
+                 tp: str,
+                 **kwargs: dict[str, float | bool]) -> None:
 
         # store variables
         parameters = {}
@@ -125,29 +140,29 @@ class BlackScholes:
         if 'greeks' in obj_param_nms:
             obj_param_nms = np.delete(obj_param_nms, np.where(obj_param_nms == 'greeks'))
 
-        if (len(obj_param_nms) == len(S_0_param_nms)):
+        if len(obj_param_nms) == len(S_0_param_nms):
             S_0_param_match = (obj_param_nms == S_0_param_nms).all()
         else:
             S_0_param_match = False
 
-        if (len(obj_param_nms) == len(F_0_param_nms)):
+        if len(obj_param_nms) == len(F_0_param_nms):
             F_0_param_match = (obj_param_nms == F_0_param_nms).all()
         else:
             F_0_param_match = False
 
-        if (S_0_param_match):
+        if S_0_param_match:
             self.version = 'S_0'
-        elif (F_0_param_match):
+        elif F_0_param_match:
             self.version = 'F_0'
         else:
             raise ValueError('Incorrect parameters!')
 
         # check option type
-        if (self.parameters['tp'] not in ['call', 'put']):
-            raise ValueError (self.tp + ' is not a supported option type!')
+        if self.parameters['tp'] not in ['call', 'put']:
+            raise ValueError (self.parameters['tp'] + ' is not a supported option type!')
 
         # Black-Scholes formula based on S_0
-        if (self.version == 'S_0'):
+        if self.version == 'S_0':
 
             # extract parameters
             tp = self.parameters['tp']
@@ -170,26 +185,63 @@ class BlackScholes:
             self.parameters['d2'] = d2
 
             # calculate option value
-            if (tp == 'call'):
-                self.f = S_0 * np.exp(-q * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-                if (greeks):
+            if tp == 'call':
+
+                self.f =\
+                    S_0 * np.exp(-q * T) * norm.cdf(d1) -\
+                    K * np.exp(-r * T) * norm.cdf(d2)
+
+                if greeks:
                     self.greeks = {}
-                    self.greeks['delta'] = np.exp(-q * T) * norm.cdf(d1)
-                    self.greeks['gamma'] = np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
-                    self.greeks['theta'] = -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) + q * S_0 * norm.pdf(d1) * np.exp(-q * T) - r * K * np.exp(-r * T) * norm.cdf(d2)
-                    self.greeks['vega'] = S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
-                    self.greeks['rho_r'] = K * T * np.exp(-r * T) * norm.cdf(d2)
-                    self.greeks['rho_q'] = -T * np.exp(-q * T) * S_0 * norm.cdf(d1)
+
+                    self.greeks['delta'] =\
+                        np.exp(-q * T) * norm.cdf(d1)
+
+                    self.greeks['gamma'] =\
+                        np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
+
+                    self.greeks['theta'] =\
+                        -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) +\
+                        q * S_0 * norm.pdf(d1) * np.exp(-q * T) -\
+                        r * K * np.exp(-r * T) * norm.cdf(d2)
+
+                    self.greeks['vega'] =\
+                        S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
+
+                    self.greeks['rho_r'] =\
+                        K * T * np.exp(-r * T) * norm.cdf(d2)
+
+                    self.greeks['rho_q'] =\
+                        -T * np.exp(-q * T) * S_0 * norm.cdf(d1)
+
             else:
-                self.f = K * np.exp(-r * T) * norm.cdf(-d2) - S_0 * np.exp(-q * T) * norm.cdf(-d1)
-                if (greeks):
+
+                self.f =\
+                    K * np.exp(-r * T) * norm.cdf(-d2) -\
+                    S_0 * np.exp(-q * T) * norm.cdf(-d1)
+
+                if greeks:
                     self.greeks = {}
-                    self.greeks['delta'] = np.exp(-q * T) * (norm.cdf(d1) - 1.0)
-                    self.greeks['gamma'] = np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
-                    self.greeks['theta'] = -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) - q * S_0 * norm.pdf(-d1) * np.exp(-q * T) + r * K * np.exp(-r * T) * norm.cdf(-d2)
-                    self.greeks['vega'] = S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
-                    self.greeks['rho_r'] = -K * T * np.exp(-r * T) * norm.cdf(-d2)
-                    self.greeks['rho_q'] = T * np.exp(-q * T) * S_0 * norm.cdf(-d1)
+
+                    self.greeks['delta'] =\
+                        np.exp(-q * T) * (norm.cdf(d1) - 1.0)
+
+                    self.greeks['gamma'] =\
+                        np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
+
+                    self.greeks['theta'] =\
+                        -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) -\
+                        q * S_0 * norm.pdf(-d1) * np.exp(-q * T) +\
+                        r * K * np.exp(-r * T) * norm.cdf(-d2)
+
+                    self.greeks['vega'] =\
+                        S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
+
+                    self.greeks['rho_r'] =\
+                        -K * T * np.exp(-r * T) * norm.cdf(-d2)
+
+                    self.greeks['rho_q'] =\
+                        T * np.exp(-q * T) * S_0 * norm.cdf(-d1)
 
         # Black-Scholes formula based on F_0 = S_0 * exp((r - q) * T); if we know F_0 we do not
         # have to estimate dividend yield q
@@ -211,9 +263,18 @@ class BlackScholes:
             self.parameters['d2'] = d2
 
             # calculate option value
-            if (tp == 'call'):
-                self.f = F_0 * np.exp(-r * T) * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+            if tp == 'call':
+
+                self.f =\
+                    F_0 * np.exp(-r * T) * norm.cdf(d1) -\
+                    K * np.exp(-r * T) * norm.cdf(d2)
+
                 self.delta = norm.cdf(d1)
+
             else:
-                self.f = K * np.exp(-r * T) * norm.cdf(-d2) - F_0 * np.exp(-r * T) * norm.cdf(-d1)
+
+                self.f =\
+                    K * np.exp(-r * T) * norm.cdf(-d2) -\
+                    F_0 * np.exp(-r * T) * norm.cdf(-d1)
+
                 self.delta = norm.cdf(d1) - 1.0
