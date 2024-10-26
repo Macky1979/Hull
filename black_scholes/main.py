@@ -206,7 +206,7 @@ class BlackScholes:
         self.parameters['d2'] = d2
 
         # calculate call value
-        if self.parameters['tp'] == 'call':
+        if tp == 'call':
 
             self.f =\
                 S_0 * np.exp(-q * T) * norm.cdf(d1) -\
@@ -292,7 +292,7 @@ class BlackScholes:
                 K * np.exp(-r * T) * norm.cdf(d2)
 
             # calculate delta
-            if self.parameters['greeks']:
+            if greeks:
                 self.greeks = {}
                 self.greeks['delta'] = norm.cdf(d1)
 
@@ -304,6 +304,72 @@ class BlackScholes:
                 F_0 * np.exp(-r * T) * norm.cdf(-d1)
 
             # calculate delta
-            if self.parameters['greeks']:
+            if greeks:
                 self.greeks = {}
             self.greeks['delta'] = norm.cdf(d1) - 1.0
+
+    def get_S_0_ladder(self, ladder_points: list[float]) -> list[list[float]]:
+        """Return S_0 ladder."""
+
+        # get base option value
+        self.calc()
+        S_0 = self.parameters['S_0']
+        base_npv = self.f
+
+        # calculate option value for individual ladder points
+        stress_npv = []
+        for ladder_point in ladder_points:
+            self.parameters['S_0'] = ladder_point
+            self.calc()
+            stress_npv.append(self.f - base_npv)
+
+        # set BlackScholes back to its original form
+        self.parameters['S_0'] = S_0
+        self.calc()
+
+        # return ladder
+        return [ladder_points, stress_npv]
+
+    def get_sigma_ladder(self, ladder_points: list[float]) -> list[list[float]]:
+        """Return sigma ladder."""
+
+        # get base option value
+        self.calc()
+        S_0 = self.parameters['S_0']
+        base_npv = self.f
+
+        # calculate option value for individual ladder points
+        stress_npv = []
+        for ladder_point in ladder_points:
+            self.parameters['S_0'] = ladder_point
+            self.calc()
+            stress_npv.append(self.f - base_npv)
+
+        # set BlackScholes back to its original form
+        self.parameters['S_0'] = S_0
+        self.calc()
+
+        # return ladder
+        return [ladder_points, stress_npv]
+
+    def get_r_ladder(self, ladder_points: list[float]) -> list[list[float]]:
+        """Return r ladder."""
+
+        # get base option value
+        self.calc()
+        r = self.parameters['r']
+        base_npv = self.f
+
+        # calculate option value for individual ladder points
+        stress_npv = []
+        for ladder_point in ladder_points:
+            self.parameters['r'] = ladder_point
+            self.calc()
+            stress_npv.append(self.f - base_npv)
+
+        # set BlackScholes back to its original form
+        self.parameters['r'] = sigma
+        self.calc()
+
+        # return ladder
+        return [ladder_points, stress_npv]
