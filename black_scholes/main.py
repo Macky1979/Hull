@@ -158,6 +158,47 @@ class BlackScholes:
         print('*** r ladder ***')
         print(np.array(r_ladder).T)
         print('\n')
+
+    example 5:
+        # delta and gamma ladder
+        tp = 'call'
+        greeks = True
+        S_0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+
+        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
+
+        # delta and gamma ladder
+        ladder_points = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
+        delta_gamma_ladder = opt.get_delta_gamma_ladder(ladder_points=ladder_points)
+        print('*** delta and gamma ladder ***')
+        print(np.array(delta_gamma_ladder).T)
+        print('\n')
+
+    example 6:
+        # vega and volga ladders
+        tp = 'call'
+        greeks = True
+        S_0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+
+        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
+
+        # vega and volga ladder
+        ladder_points = [0.05, 0.010, 0.15, 0.20, 0.25, 0.30, 0.35]
+        vega_volga_ladder = opt.get_vega_volga_ladder(ladder_points=ladder_points)
+        print('*** vega and volga ladder ***')
+        print(np.array(vega_volga_ladder).T)
+        print('\n')
+
     """
 
     def __init__(self,
@@ -407,3 +448,112 @@ class BlackScholes:
 
         # return ladder
         return [ladder_points, stress_npv]
+
+    def _calc_numeric_delta(self) -> float:
+        """Calculate numeric delta"""
+
+        # determine up and down S_0
+        S_0_base = self.parameters['S_0']
+        S_0_delta = S_0_base * 0.01
+        S_0_up = S_0_base + S_0_delta
+        S_0_down = S_0_base - S_0_delta
+
+        # calculate option value for S_0 up
+        self.parameters['S_0'] = S_0_up
+        self.calc()
+        npv_up = self.f
+
+        # calculate option value for S_0 down
+        self.parameters['S_0'] = S_0_down
+        self.calc()
+        npv_down = self.f
+
+        # reset option value
+        self.parameters['S_0'] = S_0_base
+        self.calc()
+
+        # calculate numerical delta
+        delta = (npv_up - npv_down) / (2 * S_0_delta)
+
+        # return delta
+        return delta
+
+    def get_delta_gamma_ladder(self, ladder_points: list[float]) -> list[list[list[float]]]:
+        """Return delta and gamma ladder."""
+
+        # get S_0 ladder
+        S_0_ladder = self.get_S_0_ladder(ladder_points=ladder_points)
+        S_0_ladder = S_0_ladder[1]
+
+        # create delta ladder
+        delta = self._calc_numeric_delta()
+        S_0 = self.parameters['S_0']
+        delta_ladder = []
+        for ladder_point in ladder_points:
+            delta_ladder.append((ladder_point - S_0) * delta)
+
+        # calculate gamma ladder as a difference between S_0 and delta ladder
+        gamma_ladder =\
+            [S_0_ladder - delta_ladder for S_0_ladder, delta_ladder in zip(S_0_ladder, delta_ladder)]
+
+        # set BlackScholes back to its original form
+        self.parameters['S_0'] = S_0
+        self.calc()
+
+        # return ladder
+        return [ladder_points, delta_ladder, gamma_ladder]
+
+    def _calc_numeric_vega(self) -> float:
+        """Calculate numeric vega."""
+
+        # determine up and down volatility
+        sigma_base = self.parameters['sigma']
+        sigma_delta = sigma_base * 0.01
+        sigma_up = sigma_base + sigma_delta
+        sigma_down = sigma_base - sigma_delta
+
+        # calculate option value for volatility up
+        self.parameters['sigma'] = sigma_up
+        self.calc()
+        npv_up = self.f
+
+        # calculate option value for volatility down
+        self.parameters['sigma'] = sigma_down
+        self.calc()
+        npv_down = self.f
+
+        # reset option value
+        self.parameters['sigma'] = sigma_base
+        self.calc()
+
+        # calculate numerical vega
+        vega = (npv_up - npv_down) / (2 * sigma_delta)
+
+        # return vega
+        return vega
+
+
+    def get_vega_volga_ladder(self, ladder_points: list[float]) -> list[list[list[float]]]:
+        """Return vega and volga ladder."""
+
+        # get sigma ladder
+        sigma_ladder = self.get_sigma_ladder(ladder_points=ladder_points)
+        sigma_ladder = sigma_ladder[1]
+
+        # create vega ladder
+        vega = self._calc_numeric_vega()
+        sigma = self.parameters['sigma']
+        vega_ladder = []
+        for ladder_point in ladder_points:
+            vega_ladder.append((ladder_point - sigma) * vega)
+
+        # calculate volga ladder as a difference between sigma and vega ladder
+        volga_ladder =\
+            [sigma_ladder - vega_ladder for sigma_ladder, vega_ladder in zip(sigma_ladder, vega_ladder)]
+
+        # set BlackScholes back to its original form
+        self.parameters['sigma'] = sigma
+        self.calc()
+
+        # return ladder
+        return [ladder_points, vega_ladder, volga_ladder]
