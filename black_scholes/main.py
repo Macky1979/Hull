@@ -66,6 +66,7 @@ class BlackScholes:
         max_msg_len = 20
 
         opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
+        opt.calc()
 
         msg = 'price: '
         msg_len = int(max_msg_len - len(msg))
@@ -94,6 +95,7 @@ class BlackScholes:
         T = 1.00
         F_0 = S_0 * np.exp((r - q) * T)
         opt = BlackScholes(tp=tp, greeks=greeks, F_0=F_0, K=K, r=r, sigma=sigma, T=T)
+        opt.calc()
         print('option price: ' + '{:10.3f}'.format(opt.f))
 
     example 3:
@@ -108,6 +110,7 @@ class BlackScholes:
         sigma = 0.20
         T = 1.00
         put = BlackScholes(tp=tp, greeks=greeks, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
+        put.calc()
         print('put option price:  ' + '{:10.3f}'.format(put.f))
         # call option
         tp = 'call'
@@ -119,6 +122,7 @@ class BlackScholes:
         sigma = 0.20
         T = 1.00
         call = BlackScholes(tp=tp, greeks=greeks, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
+        call.calc()
         print('call option price: ' + '{:10.3f}'.format(call.f * K))
     """
 
@@ -161,6 +165,9 @@ class BlackScholes:
         if self.parameters['tp'] not in ['call', 'put']:
             raise ValueError (self.parameters['tp'] + ' is not a supported option type!')
 
+
+    def calc(self):
+
         # Black-Scholes formula based on S_0
         if self.version == 'S_0':
 
@@ -185,7 +192,7 @@ class BlackScholes:
             self.parameters['d2'] = d2
 
             # calculate option value
-            if tp == 'call':
+            if self.parametertp == 'call':
 
                 self.f =\
                     S_0 * np.exp(-q * T) * norm.cdf(d1) -\
