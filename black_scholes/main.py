@@ -4,6 +4,7 @@
 
 import numpy as np
 
+import scipy.interpolate
 from scipy.stats import norm
 
 
@@ -177,7 +178,6 @@ class BlackScholes:
         delta_gamma_ladder = opt.get_delta_gamma_ladder(ladder_points=ladder_points)
         print('*** delta and gamma ladder ***')
         print(np.array(delta_gamma_ladder).T)
-        print('\n')
 
     example 6:
         # vega and volga ladders
@@ -197,10 +197,9 @@ class BlackScholes:
         vega_volga_ladder = opt.get_vega_volga_ladder(ladder_points=ladder_points)
         print('*** vega and volga ladder ***')
         print(np.array(vega_volga_ladder).T)
-        print('\n')
 
     example 7:
-        # ladder describing change in delta due to change in change in volatility
+        # vanna ladder describing change in delta due to change in change in volatility
         tp = 'call'
         greeks = True
         S_0 = 100
@@ -212,12 +211,43 @@ class BlackScholes:
 
         opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
 
-        # vega and volga ladder
+        # vanna ladder
         ladder_points = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
-        change_in_deltas = opt.get_delta_vs_sigma_ladder(ladder_points=ladder_points)
+        vanna_ladder = opt.get_delta_vs_sigma_ladder(ladder_points=ladder_points)
         print('*** change in delta due to change in volatility ***')
-        print(np.array(change_in_deltas).T)
-        print('\n')
+        print(np.array(vanna_ladder).T)
+
+    Example 8:
+        # decompose option value change
+        tp = 'call'
+        greeks = False
+        S_0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+
+        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
+
+        # ladder points
+        S_0_ladder_points = list(np.linspace(50, 150, 101))
+        sigma_ladder_points = list(np.linspace(0.05, 0.35, 31))
+
+        # change in S_0 and volatility
+        S_0_change = 10.0
+        sigma_change = -0.03
+
+        # get dictionary with results
+        rslt =\
+            opt.decompose_npv(S_0_change=S_0_change,
+                              S_0_ladder_points=S_0_ladder_points,
+                              sigma_change=sigma_change,
+                              sigma_ladder_points=sigma_ladder_points)
+
+        print('*** decomposition of option value change ***')
+        for key, value in rslt.items():
+            print(key.ljust(25) + ': ' + '{:10.6f}'.format(value))
     """
 
     def __init__(self,
@@ -592,19 +622,19 @@ class BlackScholes:
         # return ladder
         return [ladder_points, vega_ladder, volga_ladder]
 
-    def get_delta_vs_sigma_ladder(self, ladder_points: list[float]) -> list[list[list[float]]]:
-        """Return ladder describing change in delta due to change in volatility."""
+    def get_vanna_ladder(self, ladder_points: list[float]) -> list[list[list[float]]]:
+        """Return vanna ladder describing change in delta due to change in volatility."""
 
         # calculate delta for base volatility
         sigma_base = self.parameters['sigma']
         delta_base = self._calc_numeric_delta()
 
         # calculate deltas for volatility represented by ladder points
-        change_in_deltas = []
+        vanna_ladder = []
         for ladder_point in ladder_points:
             self.parameters['sigma'] = ladder_point
             delta = self._calc_numeric_delta()
-            change_in_deltas.append(delta - delta_base)
+            vanna_ladder.append(delta - delta_base)
 
         # center ladder points to base volatility
         ladder_points = [ladder_point - sigma_base for ladder_point in ladder_points]
@@ -614,4 +644,74 @@ class BlackScholes:
         self.calc()
 
         # return ladder
-        return [ladder_points, change_in_deltas]
+        return [ladder_points, vanna_ladder]
+
+    def decompose_npv(self,
+                      S_0_change: float,
+                      S_0_ladder_points: list[float],
+                      sigma_change: float,
+                      sigma_ladder_points: list[float]) -> dict[str, float]:
+        """Decompose change in option value due to change in S_0 and volatility."""
+
+        # calculate true change in option value
+        S_0 = self.parameters['S_0']
+        sigma = self.parameters['sigma']
+        S_0_shocked = S_0 + S_0_change
+        sigma_shocked = sigma + sigma_change
+
+        self.parameters['S_0'] = S_0_shocked
+        self.parameters['sigma'] = sigma_shocked
+        self.calc()
+        npv_shocked = self.f
+
+        self.parameters['S_0'] = S_0
+        self.parameters['sigma'] = sigma
+        self.calc()
+        npv_base = self.f
+
+        npv_change_true = npv_shocked - npv_base
+
+        # get delta and gamma ladder
+        delta_gamma_ladder =\
+            self.get_delta_gamma_ladder(ladder_points=S_0_ladder_points)
+        delta_ladder =\
+            scipy.interpolate.interp1d(x=delta_gamma_ladder[0], y=delta_gamma_ladder[1])
+        gamma_ladder =\
+            scipy.interpolate.interp1d(x=delta_gamma_ladder[0], y=delta_gamma_ladder[2])
+
+        # get vega and volga ladder
+        vega_volga_ladder =\
+            self.get_vega_volga_ladder(ladder_points=sigma_ladder_points)
+        vega_ladder =\
+            scipy.interpolate.interp1d(x=vega_volga_ladder[0], y=vega_volga_ladder[1])
+        volga_ladder =\
+            scipy.interpolate.interp1d(x=vega_volga_ladder[0], y=vega_volga_ladder[2])
+
+        # get vanna ladder
+        vanna_ladder = self.get_vanna_ladder(ladder_points=sigma_ladder_points)
+        vanna_ladder =\
+            scipy.interpolate.interp1d(x=vanna_ladder[0], y=vanna_ladder[1])
+
+        # decompose change in option value
+        npv_change_delta = delta_ladder(x=S_0_change)
+        npv_change_gamma = gamma_ladder(x=S_0_change)
+        npv_change_vega = vega_ladder(x=sigma_change)
+        npv_change_volga = volga_ladder(x=sigma_change)
+        npv_change_vanna = vanna_ladder(x=sigma_change) * S_0_change
+        npv_change_decomposed =\
+            npv_change_delta + npv_change_gamma + npv_change_vega + npv_change_volga + npv_change_vanna
+
+        # create dictionary with results
+        rslt = {}
+        rslt['npv_base'] = npv_base
+        rslt['npv_shocked'] = npv_shocked
+        rslt['npv_change_true'] = npv_change_true
+        rslt['npv_change_delta'] = npv_change_delta
+        rslt['npv_change_gamma'] = npv_change_gamma
+        rslt['npv_change_vega'] = npv_change_vega
+        rslt['npv_change_volga'] = npv_change_volga
+        rslt['npv_change_vanna'] = npv_change_vanna
+        rslt['npv_change_decomposed'] = npv_change_decomposed
+
+        # return result
+        return rslt
