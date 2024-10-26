@@ -398,6 +398,9 @@ class BlackScholes:
             self.calc()
             stress_npv.append(self.f - base_npv)
 
+        # center ladder points to base S_0
+        ladder_points = [ladder_point - S_0 for ladder_point in ladder_points]
+
         # set BlackScholes back to its original form
         self.parameters['S_0'] = S_0
         self.calc()
@@ -420,6 +423,9 @@ class BlackScholes:
             self.calc()
             stress_npv.append(self.f - base_npv)
 
+        # center ladder points to base volatility
+        ladder_points = [ladder_point - sigma for ladder_point in ladder_points]
+
         # set BlackScholes back to its original form
         self.parameters['sigma'] = sigma
         self.calc()
@@ -441,6 +447,9 @@ class BlackScholes:
             self.parameters['r'] = ladder_point
             self.calc()
             stress_npv.append(self.f - base_npv)
+
+        # center ladder points to base r
+        ladder_points = [ladder_point - r for ladder_point in ladder_points]
 
         # set BlackScholes back to its original form
         self.parameters['r'] = r
@@ -496,6 +505,9 @@ class BlackScholes:
         gamma_ladder =\
             [S_0_ladder - delta_ladder for S_0_ladder, delta_ladder in zip(S_0_ladder, delta_ladder)]
 
+        # center ladder points to base S_0
+        ladder_points = [ladder_point - S_0 for ladder_point in ladder_points]
+
         # set BlackScholes back to its original form
         self.parameters['S_0'] = S_0
         self.calc()
@@ -550,6 +562,9 @@ class BlackScholes:
         # calculate volga ladder as a difference between sigma and vega ladder
         volga_ladder =\
             [sigma_ladder - vega_ladder for sigma_ladder, vega_ladder in zip(sigma_ladder, vega_ladder)]
+
+        # center ladder points to base volatility
+        ladder_points = [ladder_point - sigma for ladder_point in ladder_points]
 
         # set BlackScholes back to its original form
         self.parameters['sigma'] = sigma
