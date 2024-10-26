@@ -127,7 +127,6 @@ class BlackScholes:
     """
 
     def __init__(self,
-                 tp: str,
                  **kwargs: dict[str, float | bool]) -> None:
 
         # store variables
@@ -165,123 +164,146 @@ class BlackScholes:
         if self.parameters['tp'] not in ['call', 'put']:
             raise ValueError (self.parameters['tp'] + ' is not a supported option type!')
 
+        # set up Greeks calculation
+        self.greeks = {}
+        if not hasattr(self.parameters, 'greeks'):
+            self.parameters['greeks'] = False
+
+        # option value
+        self.f = None
 
     def calc(self):
 
+        """Calculate option value."""
+
         # Black-Scholes formula based on S_0
         if self.version == 'S_0':
-
-            # extract parameters
-            tp = self.parameters['tp']
-            S_0 = self.parameters['S_0']
-            K = self.parameters['K']
-            r = self.parameters['r']
-            q = self.parameters['q']
-            sigma = self.parameters['sigma']
-            T = self.parameters['T']
-
-            try:
-                greeks = self.parameters['greeks']
-            except KeyError:
-                greeks = False
-
-            # calculate d1 and d2
-            d1 = (np.log(S_0 / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
-            d2 = d1 - sigma * np.sqrt(T)
-            self.parameters['d1'] = d1
-            self.parameters['d2'] = d2
-
-            # calculate option value
-            if self.parametertp == 'call':
-
-                self.f =\
-                    S_0 * np.exp(-q * T) * norm.cdf(d1) -\
-                    K * np.exp(-r * T) * norm.cdf(d2)
-
-                if greeks:
-                    self.greeks = {}
-
-                    self.greeks['delta'] =\
-                        np.exp(-q * T) * norm.cdf(d1)
-
-                    self.greeks['gamma'] =\
-                        np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
-
-                    self.greeks['theta'] =\
-                        -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) +\
-                        q * S_0 * norm.pdf(d1) * np.exp(-q * T) -\
-                        r * K * np.exp(-r * T) * norm.cdf(d2)
-
-                    self.greeks['vega'] =\
-                        S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
-
-                    self.greeks['rho_r'] =\
-                        K * T * np.exp(-r * T) * norm.cdf(d2)
-
-                    self.greeks['rho_q'] =\
-                        -T * np.exp(-q * T) * S_0 * norm.cdf(d1)
-
-            else:
-
-                self.f =\
-                    K * np.exp(-r * T) * norm.cdf(-d2) -\
-                    S_0 * np.exp(-q * T) * norm.cdf(-d1)
-
-                if greeks:
-                    self.greeks = {}
-
-                    self.greeks['delta'] =\
-                        np.exp(-q * T) * (norm.cdf(d1) - 1.0)
-
-                    self.greeks['gamma'] =\
-                        np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
-
-                    self.greeks['theta'] =\
-                        -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) -\
-                        q * S_0 * norm.pdf(-d1) * np.exp(-q * T) +\
-                        r * K * np.exp(-r * T) * norm.cdf(-d2)
-
-                    self.greeks['vega'] =\
-                        S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
-
-                    self.greeks['rho_r'] =\
-                        -K * T * np.exp(-r * T) * norm.cdf(-d2)
-
-                    self.greeks['rho_q'] =\
-                        T * np.exp(-q * T) * S_0 * norm.cdf(-d1)
+            self.calc_S0()
 
         # Black-Scholes formula based on F_0 = S_0 * exp((r - q) * T); if we know F_0 we do not
         # have to estimate dividend yield q
         else:
+            self.calc_F0()
 
-            # extract parameters
-            tp = self.parameters['tp']
-            F_0 = self.parameters['F_0']
-            K = self.parameters['K']
-            r = self.parameters['r']
-            sigma = self.parameters['sigma']
-            T = self.parameters['T']
-            greeks = self.parameters['greeks']
 
-            # calculate d1 and d2
-            d1 = (np.log(F_0 / K) + (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
-            d2 = (np.log(F_0 / K) - (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
-            self.parameters['d1'] = d1
-            self.parameters['d2'] = d2
+    def calc_S0(self):
+        """Black-Scholes formula based on S_0."""
 
-            # calculate option value
-            if tp == 'call':
+        # extract parameters
+        tp = self.parameters['tp']
+        S_0 = self.parameters['S_0']
+        K = self.parameters['K']
+        r = self.parameters['r']
+        q = self.parameters['q']
+        sigma = self.parameters['sigma']
+        T = self.parameters['T']
+        greeks = self.parameters['greeks']
 
-                self.f =\
-                    F_0 * np.exp(-r * T) * norm.cdf(d1) -\
-                    K * np.exp(-r * T) * norm.cdf(d2)
+        # calculate d1 and d2
+        d1 = (np.log(S_0 / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        self.parameters['d1'] = d1
+        self.parameters['d2'] = d2
 
-                self.delta = norm.cdf(d1)
+        # calculate call value
+        if self.parameters['tp'] == 'call':
 
-            else:
+            self.f =\
+                S_0 * np.exp(-q * T) * norm.cdf(d1) -\
+                K * np.exp(-r * T) * norm.cdf(d2)
 
-                self.f =\
-                    K * np.exp(-r * T) * norm.cdf(-d2) -\
-                    F_0 * np.exp(-r * T) * norm.cdf(-d1)
+            # calculate Greeks
+            if greeks:
 
-                self.delta = norm.cdf(d1) - 1.0
+                self.greeks['delta'] =\
+                    np.exp(-q * T) * norm.cdf(d1)
+
+                self.greeks['gamma'] =\
+                    np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
+
+                self.greeks['theta'] =\
+                    -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) +\
+                    q * S_0 * norm.pdf(d1) * np.exp(-q * T) -\
+                    r * K * np.exp(-r * T) * norm.cdf(d2)
+
+                self.greeks['vega'] =\
+                    S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
+
+                self.greeks['rho_r'] =\
+                    K * T * np.exp(-r * T) * norm.cdf(d2)
+
+                self.greeks['rho_q'] =\
+                    -T * np.exp(-q * T) * S_0 * norm.cdf(d1)
+
+        # calculate put value
+        else:
+
+            self.f =\
+                K * np.exp(-r * T) * norm.cdf(-d2) -\
+                S_0 * np.exp(-q * T) * norm.cdf(-d1)
+
+            # calculate Greeks
+            if greeks:
+                self.greeks = {}
+
+                self.greeks['delta'] =\
+                    np.exp(-q * T) * (norm.cdf(d1) - 1.0)
+
+                self.greeks['gamma'] =\
+                    np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
+
+                self.greeks['theta'] =\
+                    -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) -\
+                    q * S_0 * norm.pdf(-d1) * np.exp(-q * T) +\
+                    r * K * np.exp(-r * T) * norm.cdf(-d2)
+
+                self.greeks['vega'] =\
+                    S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
+
+                self.greeks['rho_r'] =\
+                    -K * T * np.exp(-r * T) * norm.cdf(-d2)
+
+                self.greeks['rho_q'] =\
+                    T * np.exp(-q * T) * S_0 * norm.cdf(-d1)
+
+    def calc_F0(self):
+        """Black-Scholes formula based on F_0."""
+
+        # extract parameters
+        tp = self.parameters['tp']
+        F_0 = self.parameters['F_0']
+        K = self.parameters['K']
+        r = self.parameters['r']
+        sigma = self.parameters['sigma']
+        T = self.parameters['T']
+        greeks = self.parameters['greeks']
+
+        # calculate d1 and d2
+        d1 = (np.log(F_0 / K) + (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
+        d2 = (np.log(F_0 / K) - (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
+        self.parameters['d1'] = d1
+        self.parameters['d2'] = d2
+
+        # calculate call value
+        if tp == 'call':
+
+            self.f =\
+                F_0 * np.exp(-r * T) * norm.cdf(d1) -\
+                K * np.exp(-r * T) * norm.cdf(d2)
+
+            # calculate delta
+            if self.parameters['greeks']:
+                self.greeks = {}
+                self.greeks['delta'] = norm.cdf(d1)
+
+        # calculate put value
+        else:
+
+            self.f =\
+                K * np.exp(-r * T) * norm.cdf(-d2) -\
+                F_0 * np.exp(-r * T) * norm.cdf(-d1)
+
+            # calculate delta
+            if self.parameters['greeks']:
+                self.greeks = {}
+            self.greeks['delta'] = norm.cdf(d1) - 1.0
