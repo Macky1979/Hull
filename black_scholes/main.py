@@ -146,7 +146,7 @@ class BlackScholes:
         print('\n')
 
         # sigma ladder
-        ladder_points = [0.05, 0.010, 0.15, 0.20, 0.25, 0.30, 0.35]
+        ladder_points = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
         sigma_ladder = opt.get_sigma_ladder(ladder_points=ladder_points)
         print('*** sigma ladder ***')
         print(np.array(sigma_ladder).T)
@@ -193,12 +193,31 @@ class BlackScholes:
         opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
 
         # vega and volga ladder
-        ladder_points = [0.05, 0.010, 0.15, 0.20, 0.25, 0.30, 0.35]
+        ladder_points = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
         vega_volga_ladder = opt.get_vega_volga_ladder(ladder_points=ladder_points)
         print('*** vega and volga ladder ***')
         print(np.array(vega_volga_ladder).T)
         print('\n')
 
+    example 7:
+        # ladder describing change in delta due to change in change in volatility
+        tp = 'call'
+        greeks = True
+        S_0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+
+        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
+
+        # vega and volga ladder
+        ladder_points = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
+        change_in_deltas = opt.get_delta_vs_sigma_ladder(ladder_points=ladder_points)
+        print('*** change in delta due to change in volatility ***')
+        print(np.array(change_in_deltas).T)
+        print('\n')
     """
 
     def __init__(self,
@@ -572,3 +591,27 @@ class BlackScholes:
 
         # return ladder
         return [ladder_points, vega_ladder, volga_ladder]
+
+    def get_delta_vs_sigma_ladder(self, ladder_points: list[float]) -> list[list[list[float]]]:
+        """Return ladder describing change in delta due to change in volatility."""
+
+        # calculate delta for base volatility
+        sigma_base = self.parameters['sigma']
+        delta_base = self._calc_numeric_delta()
+
+        # calculate deltas for volatility represented by ladder points
+        change_in_deltas = []
+        for ladder_point in ladder_points:
+            self.parameters['sigma'] = ladder_point
+            delta = self._calc_numeric_delta()
+            change_in_deltas.append(delta - delta_base)
+
+        # center ladder points to base volatility
+        ladder_points = [ladder_point - sigma_base for ladder_point in ladder_points]
+
+        # set BlackScholes back to its original form
+        self.parameters['sigma'] = sigma_base
+        self.calc()
+
+        # return ladder
+        return [ladder_points, change_in_deltas]
