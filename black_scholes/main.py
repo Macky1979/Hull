@@ -184,7 +184,7 @@ class BlackScholes:
         opt.calc()
         print(f"option price: {opt.f:.3f}")
         """
-        # extract parameters
+        # Extract parameters
         opt_tp = self.parameters["opt_tp"]
         S0 = self.parameters["S0"]
         K = self.parameters["K"]
@@ -193,18 +193,24 @@ class BlackScholes:
         sigma = self.parameters["sigma"]
         T = self.parameters["T"]
 
-        # calculate d1 and d2
-        d1 = (np.log(S0 / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
+        # Calculate d1 and d2
+        d1 = (np.log(S0 / K) + (r - q + sigma**2 / 2) * T) / (sigma * np.sqrt(T))
         d2 = d1 - sigma * np.sqrt(T)
         self.parameters["d1"] = d1
         self.parameters["d2"] = d2
 
-        # calculate call value
+        # Calculate call value
         if opt_tp == "call":
 
             self.f =\
                 S0 * np.exp(-q * T) * norm.cdf(d1) -\
                 K * np.exp(-r * T) * norm.cdf(d2)
+
+        # Calculate put value
+        else:
+            self.f =\
+                K * np.exp(-r * T) * norm.cdf(-d2) -\
+                S0 * np.exp(-q * T) * norm.cdf(-d1)
 
     def calc_F0(self):
         """
@@ -230,7 +236,7 @@ class BlackScholes:
         opt.calc()
         print(f"option price: {opt.f:.3f}")
         """
-        # extract parameters
+        # Extract parameters
         opt_tp = self.parameters["opt_tp"]
         F0 = self.parameters["F0"]
         K = self.parameters["K"]
@@ -238,11 +244,22 @@ class BlackScholes:
         sigma = self.parameters["sigma"]
         T = self.parameters["T"]
 
-        # calculate d1 and d2
-        d1 = (np.log(F0 / K) + (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
-        d2 = (np.log(F0 / K) - (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
+        # Calculate d1 and d2
+        d1 = (np.log(F0 / K) + (sigma**2) * T / 2) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
         self.parameters["d1"] = d1
         self.parameters["d2"] = d2
+
+        # Calculate call value
+        if opt_tp == "call":
+
+            self.f =\
+                np.exp(-r * T) * (F0 * norm.cdf(d1) - K * norm.cdf(d2))
+
+        # Calculate put value
+        else:
+            self.f =\
+                np.exp(-r * T) * (K * norm.cdf(-d2) - F0 * norm.cdf(-d1))
 
     def calc_first_derivative(self,
                               param_nm: str,
