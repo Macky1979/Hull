@@ -3,6 +3,7 @@
 # pylint: disable=line-too-long
 # pylint: redefined-outer-name
 
+import random
 import numpy as np
 from scipy.stats import norm
 
@@ -83,6 +84,47 @@ class BlackScholes:
     call = BlackScholes(opt_tp=opt_tp, greeks=greeks, S0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
     call.calc()
     print(f"call option price: {put.f:.3f}")
+
+    Example 3
+    ---------
+    # Assess option price change using Greeks
+    opt_tp = "call"
+    S0 = 100
+    K = 80
+    r = 0.05
+    q = 0.01
+    sigma = 0.20
+    T = 1.00
+
+    opt_orig = BlackScholes(opt_tp=opt_tp, S0=S0, K=K, r=r, q=q, sigma=sigma, T=T)
+    opt_orig.calc()
+    opt_orig.calc_greeks()
+
+    d = 0.9
+    u = 1.1
+    dS0 = S0 * (1.0 - random.uniform(0.9, 1.1))
+    dr = r * (1.0 - random.uniform(0.9, 1.1))
+    dq = q * (1.0 - random.uniform(0.9, 1.1))
+    dsigma = sigma * (1.0 - random.uniform(0.9, 1.1))
+    dT = -1/12
+
+    opt_stress = BlackScholes(opt_tp=opt_tp, S0=S0+dS0, K=K, r=r+dr, q=q+dq, sigma=sigma+dsigma, T=T+dT)
+    opt_stress.calc()
+
+    df_true = opt_stress.f - opt_orig.f
+    df_approx =\
+        opt_orig.greeks["delta"] * dS0\
+        + opt_orig.greeks["rho_r"] * dr\
+        + opt_orig.greeks["rho_q"] * dq\
+        + opt_orig.greeks["vega"] * dsigma\
+        + opt_orig.greeks["theta"] * dT\
+        + 0.5 * opt_orig.greeks["gamma"] * dS0**2\
+        + 0.5 * opt_orig.greeks["volga"] * dsigma**2\
+        + opt_orig.greeks["vanna"] * dS0 * dsigma
+
+    print(f"True option price change: {df_true:.3f}")
+    print(f"Approximated option price change: {df_approx:.3f}")
+    print(f"Error: {df_true - df_approx:.3f}")
     """
 
     def __init__(self,
