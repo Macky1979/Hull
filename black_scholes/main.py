@@ -1,717 +1,531 @@
 """Black-Scholes model."""
-
-# pylint: disable=C0103
+# pylint: disable=invalid-name
+# pylint: disable=line-too-long
+# pylint: redefined-outer-name
 
 import numpy as np
-
-import scipy.interpolate
 from scipy.stats import norm
 
 
 class BlackScholes:
     """
-    Michal Mackanic 08/08/2023 v1.0
+    European option pricing model based on Black-Scholes formula.
 
-    This class represents European option valued via Black-Scholes model using
-    S_0.
+    Description
+    -----------
+    Calculate option value and Greeks based on Black-Scholes formula; see chapter
+    17 of "Options, Futures, and Other Derivatives, 11e" by John C. Hull for more
+    details.
 
-    __init__(self, tp, S_0, K, r, q, sigma, T):
-        initiate object and calculate option value using Black-Scholes formula;
-        see chapter 17 of "Options, Futures, and Other Derivates" 11e by John
-        Hull
-        variables (set 1):
-            tp: float
-                option type - 'call' / 'put'
-            greeks: bool
-                True - calculate Greeks
-                False - do not calculate Greeks
-            S_0: float
-                stock price at time t = 0
-            K: float
-                strike
-            r: float
-                continuous annual risk-free rate
-            q: float
-                continuous annual dividend yield
-            sigma: float
-                annual standard deviation entering Black-Scholes formula
-            T: float
-                option maturity in years
-        variables (set 2):
-            tp: float
-                option type - 'call' / 'put'
-            greeks: bool
-                True - calculate Greeks
-                False - do not calculate Greeks
-            F_0: float
-                expected forward price as seen at time t = 0
-            K: float
-                strike
-            r: float
-                continuous annual risk-free rate
-            sigma: float
-                annual standard deviation entering Black-Scholes formula
-            T: float
-                option maturity in years
+    Parameters
+    ----------
+    opt_tp : str
+        Option type, "call" or "put"
+    S0 : float
+        Spot price of the underlying. You can either specify S0 or F0
+        (not both).
+    F0 : float
+        Forward price of the underlying. You can either specify S0 or F0
+        (not both).
+    K : float
+        Strike price
+    r : float
+        Risk-free rate
+    q : float
+        Dividend yield
+    sigma : float
+        Volatility
+    T : float
+        Time to maturity
 
-    example 1:
-        # Black-Scholes formula based on S_0
-        tp = 'call'
-        greeks = True
-        S_0 = 100
-        K = 80
-        r = 0.05
-        q = 0.01
-        sigma = 0.20
-        T = 1.00
-        max_msg_len = 20
+    Example 1
+    ---------
+    # Black-Scholes formula based on S0
+    opt_tp = "call"
+    S0 = 100
+    K = 80
+    r = 0.05
+    q = 0.01
+    sigma = 0.20
+    T = 1.00
 
-        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
-        opt.calc()
+    opt = BlackScholes(opt_tp=opt_tp, S0=S0, K=K, r=r, q=q, sigma=sigma, T=T)
+    opt.calc()
+    print(f"option price: {opt.f:.3f}")
+    opt.calc_greeks()
+    for key, value in opt.greeks.items():
+        print(f"option {key}: {value:.3f}")
 
-        msg = 'price: '
-        msg_len = int(max_msg_len - len(msg))
-        num = '{:.3f}'.format(opt.f)
-        msg_len -= len(num)
-        msg += ' ' * msg_len + num
-        print(msg)
+    Example 2
+    ---------
+    # Symmetry of FX options
 
-        for key, value in opt.greeks.items():
-            msg = key + ': '
-            msg_len = int(max_msg_len - len(msg))
-            num = '{:.3f}'.format(opt.greeks[key])
-            msg_len -= len(num)
-            msg += ' ' * msg_len + num
-            print(msg)
+    # Put option
+    opt_tp = "put"
+    fx = 1.10
+    K = 1.05
+    r = 0.05
+    r_f = 0.03
+    sigma = 0.20
+    T = 1.00
+    put = BlackScholes(opt_tp=opt_tp, S0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
+    put.calc()
+    print(f"put option price: {put.f:.3f}")
 
-    example 2:
-        # Black-Scholes formula based on F_0
-        tp = 'call'
-        greeks = False
-        S_0 = 100
-        K = 80
-        r = 0.05
-        q = 0.01
-        sigma = 0.20
-        T = 1.00
-        F_0 = S_0 * np.exp((r - q) * T)
-        opt = BlackScholes(tp=tp, greeks=greeks, F_0=F_0, K=K, r=r, sigma=sigma, T=T)
-        opt.calc()
-        print('option price: ' + '{:10.3f}'.format(opt.f))
+    # Call option
+    opt_tp = "call"
+    fx = 1.00
+    K = 1.10/1.05
+    r = 0.03
+    r_f = 0.05
+    sigma = 0.20
+    T = 1.00
+    call = BlackScholes(opt_tp=opt_tp, greeks=greeks, S0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
+    call.calc()
+    print(f"call option price: {put.f:.3f}")
+    """
 
-    example 3:
-        # symmetry of FX options
-        # put option
-        tp = 'put'
-        greeks = False
+    def __init__(self,
+                 **kwargs: dict[str, float | bool]) -> None:
+        """
+        Initialize Black-Scholes option object.
+
+        Description
+        -----------
+        Initialize Black-Scholes option object.
+
+        Raises
+        ------
+        ValueError
+            incorrect parameters
+        ValueError
+            icorrect option type
+
+        Example
+        -------
+        """
+        # Store variables
+        self.parameters = dict(kwargs)
+
+        # Check that all parameters were specified
+        S0_param_nms = sorted(set(("opt_tp", "S0", "K", "r", "q", "sigma", "T")))
+        F0_param_nms = sorted(set(("opt_tp", "F0", "K", "r", "sigma", "T")))
+        obj_param_nms = sorted(set(self.parameters.keys()))
+
+        if S0_param_nms == obj_param_nms:
+            self.version = "S0"
+        elif F0_param_nms == obj_param_nms:
+            self.version = "F0"
+        else:
+            raise ValueError("incorrect parameters")
+
+        # Check option type
+        if self.parameters["opt_tp"] not in ["call", "put"]:
+            raise ValueError(self.parameters["opt_tp"] + " is not a supported option type")
+
+        # Set up Greeks calculation
+        self.greeks = {}
+
+        # Option value
+        self.f = None
+
+    def calc(self):
+        """
+        Calculate option value based on Black-Scholes formula.
+
+        Description
+        -----------
+        Calculate option value based on Black-Scholes formula. The formula could
+        be based on spot value S0 or forward value F0 = S0 * exp((r - q) * T).
+
+        Example
+        -------
+        # Put FX option
+        opt_tp = "put"
         fx = 1.10
         K = 1.05
         r = 0.05
         r_f = 0.03
         sigma = 0.20
         T = 1.00
-        put = BlackScholes(tp=tp, greeks=greeks, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
+        put = BlackScholes(opt_tp=opt_tp, S0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
         put.calc()
-        print('put option price:  ' + '{:10.3f}'.format(put.f))
-        # call option
-        tp = 'call'
-        greeks = False
-        fx = 1.00
-        K = 1.10/1.05
-        r = 0.03
-        r_f = 0.05
-        sigma = 0.20
-        T = 1.00
-        call = BlackScholes(tp=tp, greeks=greeks, S_0=fx, K=K, r=r, q=r_f, sigma=sigma, T=T)
-        call.calc()
-        print('call option price: ' + '{:10.3f}'.format(call.f * K))
-
-    example 4:
-        # S_0, sigma, and r ladders
-        tp = 'call'
-        greeks = True
-        S_0 = 100
-        K = 80
-        r = 0.05
-        q = 0.01
-        sigma = 0.20
-        T = 1.00
-
-        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
-
-        # S_0 ladder
-        ladder_points = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
-        S_0_ladder = opt.get_S_0_ladder(ladder_points=ladder_points)
-        print('*** S_0 ladder ***')
-        print(np.array(S_0_ladder).T)
-        print('\n')
-
-        # sigma ladder
-        ladder_points = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
-        sigma_ladder = opt.get_sigma_ladder(ladder_points=ladder_points)
-        print('*** sigma ladder ***')
-        print(np.array(sigma_ladder).T)
-        print('\n')
-
-        # r ladder
-        ladder_points = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10]
-        r_ladder = opt.get_r_ladder(ladder_points=ladder_points)
-        print('*** r ladder ***')
-        print(np.array(r_ladder).T)
-        print('\n')
-
-    example 5:
-        # delta and gamma ladder
-        tp = 'call'
-        greeks = True
-        S_0 = 100
-        K = 80
-        r = 0.05
-        q = 0.01
-        sigma = 0.20
-        T = 1.00
-
-        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
-
-        # delta and gamma ladder
-        ladder_points = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
-        delta_gamma_ladder = opt.get_delta_gamma_ladder(ladder_points=ladder_points)
-        print('*** delta and gamma ladder ***')
-        print(np.array(delta_gamma_ladder).T)
-
-    example 6:
-        # vega and volga ladders
-        tp = 'call'
-        greeks = True
-        S_0 = 100
-        K = 80
-        r = 0.05
-        q = 0.01
-        sigma = 0.20
-        T = 1.00
-
-        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
-
-        # vega and volga ladder
-        ladder_points = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
-        vega_volga_ladder = opt.get_vega_volga_ladder(ladder_points=ladder_points)
-        print('*** vega and volga ladder ***')
-        print(np.array(vega_volga_ladder).T)
-
-    example 7:
-        # vanna ladder describing change in delta due to change in change in volatility
-        tp = 'call'
-        greeks = True
-        S_0 = 100
-        K = 80
-        r = 0.05
-        q = 0.01
-        sigma = 0.20
-        T = 1.00
-
-        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
-
-        # vanna ladder
-        ladder_points = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
-        vanna_ladder = opt.get_delta_vs_sigma_ladder(ladder_points=ladder_points)
-        print('*** change in delta due to change in volatility ***')
-        print(np.array(vanna_ladder).T)
-
-    Example 8:
-        # decompose option value change
-        tp = 'call'
-        greeks = False
-        S_0 = 100
-        K = 80
-        r = 0.05
-        q = 0.01
-        sigma = 0.20
-        T = 1.00
-
-        opt = BlackScholes(tp=tp, greeks=greeks, S_0=S_0, K=K, r=r, q = q, sigma=sigma, T=T)
-
-        # ladder points
-        S_0_ladder_points = list(np.linspace(50, 150, 101))
-        sigma_ladder_points = list(np.linspace(0.05, 0.35, 31))
-
-        # change in S_0 and volatility
-        S_0_change = 10.0
-        sigma_change = -0.03
-
-        # get dictionary with results
-        rslt =\
-            opt.decompose_npv(S_0_change=S_0_change,
-                              S_0_ladder_points=S_0_ladder_points,
-                              sigma_change=sigma_change,
-                              sigma_ladder_points=sigma_ladder_points)
-
-        print('*** decomposition of option value change ***')
-        for key, value in rslt.items():
-            print(key.ljust(25) + ': ' + '{:10.6f}'.format(value))
-    """
-
-    def __init__(self,
-                 **kwargs: dict[str, float | bool]) -> None:
-
-        # store variables
-        parameters = {}
-        for key, value in kwargs.items():
-            parameters[key] = value
-        self.parameters = parameters
-
-        # check that all parameters were specified
-        S_0_param_nms = np.sort(['tp', 'S_0', 'K', 'r', 'q', 'sigma', 'T'])
-        F_0_param_nms = np.sort(['tp', 'F_0', 'K', 'r', 'sigma', 'T'])
-        obj_param_nms = np.sort(list(self.parameters.keys()))
-
-        if 'greeks' in obj_param_nms:
-            obj_param_nms = np.delete(obj_param_nms, np.where(obj_param_nms == 'greeks'))
-
-        if len(obj_param_nms) == len(S_0_param_nms):
-            S_0_param_match = (obj_param_nms == S_0_param_nms).all()
-        else:
-            S_0_param_match = False
-
-        if len(obj_param_nms) == len(F_0_param_nms):
-            F_0_param_match = (obj_param_nms == F_0_param_nms).all()
-        else:
-            F_0_param_match = False
-
-        if S_0_param_match:
-            self.version = 'S_0'
-        elif F_0_param_match:
-            self.version = 'F_0'
-        else:
-            raise ValueError('Incorrect parameters!')
-
-        # check option type
-        if self.parameters['tp'] not in ['call', 'put']:
-            raise ValueError (self.parameters['tp'] + ' is not a supported option type!')
-
-        # set up Greeks calculation
-        self.greeks = {}
-        if not hasattr(self.parameters, 'greeks'):
-            self.parameters['greeks'] = False
-
-        # option value
-        self.f = None
-
-    def calc(self):
-
-        """Calculate option value."""
-
-        # Black-Scholes formula based on S_0
-        if self.version == 'S_0':
+        print(f"option price: {opt.f:.3f}")
+        """
+        # Black-Scholes formula based on S0
+        if self.version == "S0":
             self.calc_S0()
 
-        # Black-Scholes formula based on F_0 = S_0 * exp((r - q) * T); if we know F_0 we do not
+        # Black-Scholes formula based on F0 = S0 * exp((r - q) * T); if we know F0 we do not
         # have to estimate dividend yield q
         else:
             self.calc_F0()
 
-
     def calc_S0(self):
-        """Black-Scholes formula based on S_0."""
+        """
+        Calculate option value based on Black-Scholes formula using spot value.
 
+        Description
+        -----------
+        Calculate option value based on Black-Scholes formula using spot value
+        # of the underlying S0.
+
+        Example
+        -------
+        # Black-Scholes formula based on S0
+        opt_tp = "call"
+        S0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+        opt = BlackScholes(opt_tp=opt_tp, S0=S0, K=K, r=r, q=q, sigma=sigma, T=T)
+        opt.calc()
+        print(f"option price: {opt.f:.3f}")
+        """
         # extract parameters
-        tp = self.parameters['tp']
-        S_0 = self.parameters['S_0']
-        K = self.parameters['K']
-        r = self.parameters['r']
-        q = self.parameters['q']
-        sigma = self.parameters['sigma']
-        T = self.parameters['T']
-        greeks = self.parameters['greeks']
+        opt_tp = self.parameters["opt_tp"]
+        S0 = self.parameters["S0"]
+        K = self.parameters["K"]
+        r = self.parameters["r"]
+        q = self.parameters["q"]
+        sigma = self.parameters["sigma"]
+        T = self.parameters["T"]
 
         # calculate d1 and d2
-        d1 = (np.log(S_0 / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
+        d1 = (np.log(S0 / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * np.sqrt(T))
         d2 = d1 - sigma * np.sqrt(T)
-        self.parameters['d1'] = d1
-        self.parameters['d2'] = d2
+        self.parameters["d1"] = d1
+        self.parameters["d2"] = d2
 
         # calculate call value
-        if tp == 'call':
+        if opt_tp == "call":
 
             self.f =\
-                S_0 * np.exp(-q * T) * norm.cdf(d1) -\
+                S0 * np.exp(-q * T) * norm.cdf(d1) -\
                 K * np.exp(-r * T) * norm.cdf(d2)
-
-            # calculate Greeks
-            if greeks:
-
-                self.greeks['delta'] =\
-                    np.exp(-q * T) * norm.cdf(d1)
-
-                self.greeks['gamma'] =\
-                    np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
-
-                self.greeks['theta'] =\
-                    -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) +\
-                    q * S_0 * norm.pdf(d1) * np.exp(-q * T) -\
-                    r * K * np.exp(-r * T) * norm.cdf(d2)
-
-                self.greeks['vega'] =\
-                    S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
-
-                self.greeks['rho_r'] =\
-                    K * T * np.exp(-r * T) * norm.cdf(d2)
-
-                self.greeks['rho_q'] =\
-                    -T * np.exp(-q * T) * S_0 * norm.cdf(d1)
-
-        # calculate put value
-        else:
-
-            self.f =\
-                K * np.exp(-r * T) * norm.cdf(-d2) -\
-                S_0 * np.exp(-q * T) * norm.cdf(-d1)
-
-            # calculate Greeks
-            if greeks:
-                self.greeks = {}
-
-                self.greeks['delta'] =\
-                    np.exp(-q * T) * (norm.cdf(d1) - 1.0)
-
-                self.greeks['gamma'] =\
-                    np.exp(-q * T) * norm.pdf(d1) / (S_0 * sigma * np.sqrt(T))
-
-                self.greeks['theta'] =\
-                    -S_0 * norm.pdf(d1) * sigma * np.exp(-q * T) / (2 * np.sqrt(T)) -\
-                    q * S_0 * norm.pdf(-d1) * np.exp(-q * T) +\
-                    r * K * np.exp(-r * T) * norm.cdf(-d2)
-
-                self.greeks['vega'] =\
-                    S_0 * np.sqrt(T) * norm.pdf(d1) * np.exp(-q * T)
-
-                self.greeks['rho_r'] =\
-                    -K * T * np.exp(-r * T) * norm.cdf(-d2)
-
-                self.greeks['rho_q'] =\
-                    T * np.exp(-q * T) * S_0 * norm.cdf(-d1)
 
     def calc_F0(self):
-        """Black-Scholes formula based on F_0."""
+        """
+        Calculate option value based on Black-Scholes formula using forward price.
 
+        Description
+        -----------
+        Calculate option value based on Black-Scholes formula using forward
+        price of the underlying defined as F0 = S0 * exp((r - q) * T).
+
+        Example
+        -------
+        # Black-Scholes formula based on F0
+        opt_tp = "call"
+        S0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+        F0 = S0 * np.exp((r - q) * T)
+        opt = BlackScholes(opt_tp=opt_tp, F0=F0, K=K, r=r, sigma=sigma, T=T)
+        opt.calc()
+        print(f"option price: {opt.f:.3f}")
+        """
         # extract parameters
-        tp = self.parameters['tp']
-        F_0 = self.parameters['F_0']
-        K = self.parameters['K']
-        r = self.parameters['r']
-        sigma = self.parameters['sigma']
-        T = self.parameters['T']
-        greeks = self.parameters['greeks']
+        opt_tp = self.parameters["opt_tp"]
+        F0 = self.parameters["F0"]
+        K = self.parameters["K"]
+        r = self.parameters["r"]
+        sigma = self.parameters["sigma"]
+        T = self.parameters["T"]
 
         # calculate d1 and d2
-        d1 = (np.log(F_0 / K) + (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
-        d2 = (np.log(F_0 / K) - (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
-        self.parameters['d1'] = d1
-        self.parameters['d2'] = d2
+        d1 = (np.log(F0 / K) + (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
+        d2 = (np.log(F0 / K) - (sigma ** 2) * T / 2) / (sigma * np.sqrt(T))
+        self.parameters["d1"] = d1
+        self.parameters["d2"] = d2
 
-        # calculate call value
-        if tp == 'call':
+    def calc_first_derivative(self,
+                              param_nm: str,
+                              step: float = 1e-5) -> float:
+        """
+        Calculate the first derivative of the option value with respect to
+        a parameter.
 
-            self.f =\
-                F_0 * np.exp(-r * T) * norm.cdf(d1) -\
-                K * np.exp(-r * T) * norm.cdf(d2)
+        Description
+        -----------
+        Calculate the first derivative of the option value with respect to
+        a parameter using the central difference method. The method could be
+        used to calculate Greeks delta, theta, vega, and rho.
 
-            # calculate delta
-            if greeks:
-                self.greeks = {}
-                self.greeks['delta'] = norm.cdf(d1)
+        Link: https://math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
 
-        # calculate put value
+        Parameters
+        ----------
+        param_nm : str
+            Name of the parameter for which the derivative is calculated.
+        step : float, optional
+            Shift applied to the original parameter value, by default 1e-5.
+
+        Returns
+        -------
+        float
+            First derivative of the option value with respect to the parameter.
+
+        Example
+        -------
+        # Calculate delta of European call option
+        opt_tp = "call"
+        S0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+        opt = BlackScholes(opt_tp=opt_tp, S0=S0, K=K, r=r, q=q, sigma=sigma, T=T)
+        delta = opt.calc_first_derivative(param_nm="S0")
+        print(f"option delta: {delta:.3f}")
+        """
+        # Store the current value of the parameter
+        param_val = self.parameters[param_nm]
+
+        # Shift the parameter value by a small step a re-calculate the option
+        # value
+        self.parameters[param_nm] = param_val + step
+        self.calc()
+        f_up = self.f
+        self.parameters[param_nm] = param_val - step
+        self.calc()
+        f_down = self.f
+
+        # Return the parameter to its original value and re-calculate the option
+        # value
+        self.parameters[param_nm] = param_val
+        self.calc()
+
+        # Calculate the first derivative
+        return (f_up - f_down) / (2 * step)
+
+    def calc_second_derivative(self,
+                               param_nm: str,
+                               step: float = 1e-5) -> float:
+        """
+        Calculate the second derivative of the option value with respect to
+        a parameter.
+
+        Description
+        -----------
+        Calculate the second derivative of the option value with respect to
+        a parameter using the central difference method. The method could be
+        used to calculate Greeks gamma and volga.
+
+        Link: https://math.umd.edu/~dlevy/classes/amsc466/lecture-notes/differentiation-chap.pdf
+
+        Parameters
+        ----------
+        param_nm : str
+            Name of the parameter for which the derivative is calculated.
+        step : float, optional
+            Shift applied to the original parameter value, by default 1e-5.
+
+        Returns
+        -------
+        float
+            Second derivative of the option value with respect to the parameter.
+
+        Example
+        -------
+        # Calculate gamma of European call option
+        opt_tp = "call"
+        S0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+        opt = BlackScholes(opt_tp=opt_tp, S0=S0, K=K, r=r, q=q, sigma=sigma, T=T)
+        gamma = opt.calc_second_derivative(param_nm="S0")
+        print(f"option gamma: {gamma:.3f}")
+        """
+        # Store the current value of the parameter
+        param_val = self.parameters[param_nm]
+
+        # Shift the parameter value by a small step a re-calculate the option
+        # value
+        self.parameters[param_nm] = param_val + step
+        self.calc()
+        f_up = self.f
+        self.parameters[param_nm] = param_val - step
+        self.calc()
+        f_down = self.f
+
+        # Return the parameter to its original value and re-calculate the option
+        # value
+        self.parameters[param_nm] = param_val
+        self.calc()
+        f_mid = self.f
+
+        # Calculate the second derivative
+        return (f_up + f_down - 2 * f_mid) / step**2
+
+    def calc_cross_derivative(self,
+                              param_nm_1: str,
+                              param_nm_2: str,
+                              step: float = 1e-5) -> float:
+        """
+        Calculate the cross derivative of the option value with respect to
+        two parameters.
+
+        Description
+        -----------
+        Calculate the cross derivative of the option value with respect to
+        two parameters. The method could be used to calculate Greeks vanna.
+
+        Link: https://math.stackexchange.com/questions/2931510/cross-derivatives-using-finite-differences.
+
+        Parameters
+        ----------
+        param_nm_1 : str
+            Name of the first parameter for which the derivative is calculated.
+        param_nm_2 : str
+            Name of the second parameter for which the derivative is calculated.
+        step : float, optional
+            Shift applied to the original parameters value, by default 1e-5.
+
+        Returns
+        -------
+        float
+            Cross derivative of the option value with respect to the parameter.
+
+        Example
+        -------
+        # Calculate vanna of European call option
+        opt_tp = "call"
+        S0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+        opt = BlackScholes(opt_tp=opt_tp, S0=S0, K=K, r=r, q=q, sigma=sigma, T=T)
+        vanna = opt.calc_cross_derivative(param_nm_1="sigma", param_nm_2="S0")
+        print(f"option vanna: {vanna:.3f}")
+        """
+        # Store the current values of the parameters
+        param_val_1 = self.parameters[param_nm_1]
+        param_val_2 = self.parameters[param_nm_2]
+
+        # Shift the parameters values by a small step a re-calculate the
+        # option value
+        self.parameters[param_nm_1] = param_val_1 + step
+        self.parameters[param_nm_2] = param_val_2 + step
+        self.calc()
+        f_up_up = self.f
+
+        self.parameters[param_nm_1] = param_val_1 + step
+        self.parameters[param_nm_2] = param_val_2 - step
+        self.calc()
+        f_up_down = self.f
+
+        self.parameters[param_nm_1] = param_val_1 - step
+        self.parameters[param_nm_2] = param_val_2 + step
+        self.calc()
+        f_down_up = self.f
+
+        self.parameters[param_nm_1] = param_val_1 - step
+        self.parameters[param_nm_2] = param_val_2 - step
+        self.calc()
+        f_down_down = self.f
+
+        # Return the parameters to their original values and re-calculate the
+        # option value
+        self.parameters[param_nm_1] = param_val_1
+        self.parameters[param_nm_2] = param_val_2
+        self.calc()
+
+        # Calculate the cross derivative
+        return (f_up_up - f_up_down - f_down_up + f_down_down) / (2 * step)**2
+
+    def calc_greeks(self,
+                    step: float = 1e-5) -> None:
+        """
+        Calculate Greeks.
+
+        Description
+        -----------
+        Calculate Greeks delta, gamma, rho_r, theta, vega, volga, vanna, and rho_q.
+
+        Parameters
+        ----------
+        step : float, optional
+            _description_, by default 1e-5
+
+        Example
+        -------
+        # Calculate Greeks of European call option
+        opt_tp = "call"
+        S0 = 100
+        K = 80
+        r = 0.05
+        q = 0.01
+        sigma = 0.20
+        T = 1.00
+        opt = BlackScholes(opt_tp=opt_tp, S0=S0, K=K, r=r, q=q, sigma=sigma, T=T)
+        opt.calc_greeks()
+        for key, value in opt.greeks.items():
+            print(f"option {key}: {value:.3f}")
+        """
+
+        if self.version == "S0":
+
+            # Calculate delta
+            self.greeks["delta"] =\
+                self.calc_first_derivative(param_nm="S0",
+                                           step=step)
+
+            # Calculate gamma
+            self.greeks["gamma"] =\
+                self.calc_second_derivative(param_nm="S0",
+                                            step=step)
+
+            # Calculate rho with respect to q
+            self.greeks["rho_q"] =\
+                self.calc_first_derivative(param_nm="q",
+                                           step=step)
+
         else:
 
-            self.f =\
-                K * np.exp(-r * T) * norm.cdf(-d2) -\
-                F_0 * np.exp(-r * T) * norm.cdf(-d1)
-
-            # calculate delta
-            if greeks:
-                self.greeks = {}
-            self.greeks['delta'] = norm.cdf(d1) - 1.0
-
-    def get_S_0_ladder(self, ladder_points: list[float]) -> list[list[float]]:
-        """Return S_0 ladder."""
-
-        # get base option value
-        self.calc()
-        S_0 = self.parameters['S_0']
-        base_npv = self.f
-
-        # calculate option value for individual ladder points
-        stress_npv = []
-        for ladder_point in ladder_points:
-            self.parameters['S_0'] = ladder_point
-            self.calc()
-            stress_npv.append(self.f - base_npv)
-
-        # center ladder points to base S_0
-        ladder_points = [ladder_point - S_0 for ladder_point in ladder_points]
-
-        # set BlackScholes back to its original form
-        self.parameters['S_0'] = S_0
-        self.calc()
-
-        # return ladder
-        return [ladder_points, stress_npv]
-
-    def get_sigma_ladder(self, ladder_points: list[float]) -> list[list[float]]:
-        """Return sigma ladder."""
-
-        # get base option value
-        self.calc()
-        sigma = self.parameters['sigma']
-        base_npv = self.f
-
-        # calculate option value for individual ladder points
-        stress_npv = []
-        for ladder_point in ladder_points:
-            self.parameters['sigma'] = ladder_point
-            self.calc()
-            stress_npv.append(self.f - base_npv)
-
-        # center ladder points to base volatility
-        ladder_points = [ladder_point - sigma for ladder_point in ladder_points]
-
-        # set BlackScholes back to its original form
-        self.parameters['sigma'] = sigma
-        self.calc()
-
-        # return ladder
-        return [ladder_points, stress_npv]
-
-    def get_r_ladder(self, ladder_points: list[float]) -> list[list[float]]:
-        """Return r ladder."""
-
-        # get base option value
-        self.calc()
-        r = self.parameters['r']
-        base_npv = self.f
-
-        # calculate option value for individual ladder points
-        stress_npv = []
-        for ladder_point in ladder_points:
-            self.parameters['r'] = ladder_point
-            self.calc()
-            stress_npv.append(self.f - base_npv)
-
-        # center ladder points to base r
-        ladder_points = [ladder_point - r for ladder_point in ladder_points]
-
-        # set BlackScholes back to its original form
-        self.parameters['r'] = r
-        self.calc()
-
-        # return ladder
-        return [ladder_points, stress_npv]
-
-    def _calc_numeric_delta(self) -> float:
-        """Calculate numeric delta"""
-
-        # determine up and down S_0
-        S_0_base = self.parameters['S_0']
-        S_0_delta = S_0_base * 0.01
-        S_0_up = S_0_base + S_0_delta
-        S_0_down = S_0_base - S_0_delta
-
-        # calculate option value for S_0 up
-        self.parameters['S_0'] = S_0_up
-        self.calc()
-        npv_up = self.f
-
-        # calculate option value for S_0 down
-        self.parameters['S_0'] = S_0_down
-        self.calc()
-        npv_down = self.f
-
-        # reset option value
-        self.parameters['S_0'] = S_0_base
-        self.calc()
-
-        # calculate numerical delta
-        delta = (npv_up - npv_down) / (2 * S_0_delta)
-
-        # return delta
-        return delta
-
-    def get_delta_gamma_ladder(self, ladder_points: list[float]) -> list[list[list[float]]]:
-        """Return delta and gamma ladder."""
-
-        # get S_0 ladder
-        S_0_ladder = self.get_S_0_ladder(ladder_points=ladder_points)
-        S_0_ladder = S_0_ladder[1]
-
-        # create delta ladder
-        delta = self._calc_numeric_delta()
-        S_0 = self.parameters['S_0']
-        delta_ladder = []
-        for ladder_point in ladder_points:
-            delta_ladder.append((ladder_point - S_0) * delta)
-
-        # calculate gamma ladder as a difference between S_0 and delta ladder
-        gamma_ladder =\
-            [S_0_ladder - delta_ladder for S_0_ladder, delta_ladder in zip(S_0_ladder, delta_ladder)]
-
-        # center ladder points to base S_0
-        ladder_points = [ladder_point - S_0 for ladder_point in ladder_points]
-
-        # set BlackScholes back to its original form
-        self.parameters['S_0'] = S_0
-        self.calc()
-
-        # return ladder
-        return [ladder_points, delta_ladder, gamma_ladder]
-
-    def _calc_numeric_vega(self) -> float:
-        """Calculate numeric vega."""
-
-        # determine up and down volatility
-        sigma_base = self.parameters['sigma']
-        sigma_delta = sigma_base * 0.01
-        sigma_up = sigma_base + sigma_delta
-        sigma_down = sigma_base - sigma_delta
-
-        # calculate option value for volatility up
-        self.parameters['sigma'] = sigma_up
-        self.calc()
-        npv_up = self.f
-
-        # calculate option value for volatility down
-        self.parameters['sigma'] = sigma_down
-        self.calc()
-        npv_down = self.f
-
-        # reset option value
-        self.parameters['sigma'] = sigma_base
-        self.calc()
-
-        # calculate numerical vega
-        vega = (npv_up - npv_down) / (2 * sigma_delta)
-
-        # return vega
-        return vega
-
-
-    def get_vega_volga_ladder(self, ladder_points: list[float]) -> list[list[list[float]]]:
-        """Return vega and volga ladder."""
-
-        # get sigma ladder
-        sigma_ladder = self.get_sigma_ladder(ladder_points=ladder_points)
-        sigma_ladder = sigma_ladder[1]
-
-        # create vega ladder
-        vega = self._calc_numeric_vega()
-        sigma = self.parameters['sigma']
-        vega_ladder = []
-        for ladder_point in ladder_points:
-            vega_ladder.append((ladder_point - sigma) * vega)
-
-        # calculate volga ladder as a difference between sigma and vega ladder
-        volga_ladder =\
-            [sigma_ladder - vega_ladder for sigma_ladder, vega_ladder in zip(sigma_ladder, vega_ladder)]
-
-        # center ladder points to base volatility
-        ladder_points = [ladder_point - sigma for ladder_point in ladder_points]
-
-        # set BlackScholes back to its original form
-        self.parameters['sigma'] = sigma
-        self.calc()
-
-        # return ladder
-        return [ladder_points, vega_ladder, volga_ladder]
-
-    def get_vanna_ladder(self, ladder_points: list[float]) -> list[list[list[float]]]:
-        """Return vanna ladder describing change in delta due to change in volatility."""
-
-        # calculate delta for base volatility
-        sigma_base = self.parameters['sigma']
-        delta_base = self._calc_numeric_delta()
-
-        # calculate deltas for volatility represented by ladder points
-        vanna_ladder = []
-        for ladder_point in ladder_points:
-            self.parameters['sigma'] = ladder_point
-            delta = self._calc_numeric_delta()
-            vanna_ladder.append(delta - delta_base)
-
-        # center ladder points to base volatility
-        ladder_points = [ladder_point - sigma_base for ladder_point in ladder_points]
-
-        # set BlackScholes back to its original form
-        self.parameters['sigma'] = sigma_base
-        self.calc()
-
-        # return ladder
-        return [ladder_points, vanna_ladder]
-
-    def decompose_npv(self,
-                      S_0_change: float,
-                      S_0_ladder_points: list[float],
-                      sigma_change: float,
-                      sigma_ladder_points: list[float]) -> dict[str, float]:
-        """Decompose change in option value due to change in S_0 and volatility."""
-
-        # calculate true change in option value
-        S_0 = self.parameters['S_0']
-        sigma = self.parameters['sigma']
-        S_0_shocked = S_0 + S_0_change
-        sigma_shocked = sigma + sigma_change
-
-        self.parameters['S_0'] = S_0_shocked
-        self.parameters['sigma'] = sigma_shocked
-        self.calc()
-        npv_shocked = self.f
-
-        self.parameters['S_0'] = S_0
-        self.parameters['sigma'] = sigma
-        self.calc()
-        npv_base = self.f
-
-        npv_change_true = npv_shocked - npv_base
-
-        # get delta and gamma ladder
-        delta_gamma_ladder =\
-            self.get_delta_gamma_ladder(ladder_points=S_0_ladder_points)
-        delta_ladder =\
-            scipy.interpolate.interp1d(x=delta_gamma_ladder[0], y=delta_gamma_ladder[1])
-        gamma_ladder =\
-            scipy.interpolate.interp1d(x=delta_gamma_ladder[0], y=delta_gamma_ladder[2])
-
-        # get vega and volga ladder
-        vega_volga_ladder =\
-            self.get_vega_volga_ladder(ladder_points=sigma_ladder_points)
-        vega_ladder =\
-            scipy.interpolate.interp1d(x=vega_volga_ladder[0], y=vega_volga_ladder[1])
-        volga_ladder =\
-            scipy.interpolate.interp1d(x=vega_volga_ladder[0], y=vega_volga_ladder[2])
-
-        # get vanna ladder
-        vanna_ladder = self.get_vanna_ladder(ladder_points=sigma_ladder_points)
-        vanna_ladder =\
-            scipy.interpolate.interp1d(x=vanna_ladder[0], y=vanna_ladder[1])
-
-        # decompose change in option value
-        npv_change_delta = delta_ladder(x=S_0_change)
-        npv_change_gamma = gamma_ladder(x=S_0_change)
-        npv_change_vega = vega_ladder(x=sigma_change)
-        npv_change_volga = volga_ladder(x=sigma_change)
-        npv_change_vanna = vanna_ladder(x=sigma_change) * S_0_change
-        npv_change_decomposed =\
-            npv_change_delta + npv_change_gamma + npv_change_vega + npv_change_volga + npv_change_vanna
-
-        # create dictionary with results
-        rslt = {}
-        rslt['npv_base'] = npv_base
-        rslt['npv_shocked'] = npv_shocked
-        rslt['npv_change_true'] = npv_change_true
-        rslt['npv_change_delta'] = npv_change_delta
-        rslt['npv_change_gamma'] = npv_change_gamma
-        rslt['npv_change_vega'] = npv_change_vega
-        rslt['npv_change_volga'] = npv_change_volga
-        rslt['npv_change_vanna'] = npv_change_vanna
-        rslt['npv_change_decomposed'] = npv_change_decomposed
-
-        # return result
-        return rslt
+            # Calculate delta
+            self.greeks["delta"] =\
+                self.calc_first_derivative(param_nm="F0",
+                                           step=step)
+
+            # Calculate gamma
+            self.greeks["gamma"] =\
+                self.calc_second_derivative(param_nm="F0",
+                                            step=step)
+
+        # Calculate rho with respect to r
+        self.greeks["rho_r"] =\
+            self.calc_first_derivative(param_nm="r",
+                                       step=step)
+
+        # Calculate theta
+        self.greeks["theta"] =\
+            self.calc_first_derivative(param_nm="T",
+                                       step=step)
+
+        # Calculate vega
+        self.greeks["vega"] =\
+            self.calc_first_derivative(param_nm="sigma",
+                                       step=step)
+
+        # Calculate volga
+        self.greeks["volga"] =\
+            self.calc_second_derivative(param_nm="sigma",
+                                        step=step)
+
+        # Calculate vanna
+        self.greeks["vanna"] =\
+            self.calc_cross_derivative(param_nm_1="sigma",
+                                       param_nm_2="S0",
+                                       step=step)
