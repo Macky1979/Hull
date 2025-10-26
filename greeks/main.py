@@ -331,7 +331,7 @@ def plot_greek(x, ys, x_label, plot_nm, file_nm):
     plt.clf()
 
     # greek of call option
-    fig, ax1 = plt.subplots()
+    _, ax1 = plt.subplots()
     plt1 = ax1.plot(x,
                     ys[0],
                     linestyle='solid',
@@ -365,3 +365,4 @@ def plot_greek(x, ys, x_label, plot_nm, file_nm):
     plt.tight_layout()
     plt.gcf().set_size_inches(10, 5)
     plt.savefig(file_nm, dpi=100)
+    plt.close()
