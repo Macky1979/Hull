@@ -1,0 +1,18 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+env/
+
+# Snippets
+**/@snippets/
+
+# Logs
+*.log
+
+# IDE files
+.vscode/
+.idea/
